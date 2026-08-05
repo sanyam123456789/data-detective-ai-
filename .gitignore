@@ -1,0 +1,59 @@
+# Node
+node_modules/
+**/node_modules/
+.next/
+out/
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+.venv/
+venv/
+env/
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.production
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# Uploads
+backend/uploads/
+backend/data/uploads/
+backend/data/processed/
+backend/data/reports/
+backend/data/temp/
