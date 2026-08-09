@@ -40,7 +40,8 @@ export default function Dashboard() {
     },
   });
 
-  const formatBytes = (bytes: number) => {
+  const formatBytes = (bytes: number | null | undefined) => {
+    if (bytes === null || bytes === undefined) return '-';
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -50,25 +51,34 @@ export default function Dashboard() {
 
   const formatDate = (dateVal: string) => {
     try {
+      if (!dateVal) return '-';
       return new Date(dateVal).toLocaleString();
     } catch {
       return dateVal;
     }
   };
 
+  const formatNumberSafe = (val: number | null | undefined): string => {
+    if (val === null || val === undefined) return '-';
+    return val.toLocaleString();
+  };
+
   // Aggregated data calculations
   const totalDatasets = datasets?.length || 0;
   
-  const totalRows = datasets?.reduce((sum, item) => sum + (item.total_rows || 0), 0) || 0;
-  const totalColumns = datasets?.reduce((sum, item) => sum + (item.total_columns || 0), 0) || 0;
+  const hasProfiles = datasets?.some(item => item.health_score !== null && item.health_score !== undefined) ?? false;
+
+  const totalRows = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_rows ?? 0), 0) ?? 0 : null;
+  const totalColumns = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_columns ?? 0), 0) ?? 0 : null;
   
-  const totalHealth = datasets?.reduce((sum, item) => sum + (item.health_score || 0), 0) || 0;
-  const avgHealthScore = totalDatasets > 0 ? (totalHealth / totalDatasets).toFixed(1) + '%' : '0%';
+  const totalHealth = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.health_score ?? 0), 0) ?? 0 : null;
+  const profiledCount = datasets?.filter(item => item.health_score !== null && item.health_score !== undefined).length || 0;
+  const avgHealthScore = profiledCount > 0 && totalHealth !== null ? (totalHealth / profiledCount).toFixed(1) + '%' : '-';
   
-  const totalMissing = datasets?.reduce((sum, item) => sum + (item.total_missing_values || 0), 0) || 0;
-  const totalDuplicates = datasets?.reduce((sum, item) => sum + (item.total_duplicate_rows || 0), 0) || 0;
-  const totalMemoryBytes = datasets?.reduce((sum, item) => sum + (item.memory_usage_bytes || 0), 0) || 0;
-  const totalOutliers = datasets?.reduce((sum, item) => sum + (item.total_outliers || 0), 0) || 0;
+  const totalMissing = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_missing_values ?? 0), 0) ?? 0 : null;
+  const totalDuplicates = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_duplicate_rows ?? 0), 0) ?? 0 : null;
+  const totalMemoryBytes = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.memory_usage_bytes ?? 0), 0) ?? 0 : null;
+  const totalOutliers = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_outliers ?? 0), 0) ?? 0 : null;
 
   const cards = [
     {
@@ -80,14 +90,14 @@ export default function Dashboard() {
     },
     {
       title: 'Rows Processed',
-      value: totalRows.toLocaleString(),
+      value: formatNumberSafe(totalRows),
       change: 'Total ingested data rows',
       icon: Activity,
       color: 'text-indigo-400',
     },
     {
       title: 'Columns Ingested',
-      value: totalColumns.toLocaleString(),
+      value: formatNumberSafe(totalColumns),
       change: 'Total schemas mapped',
       icon: Database,
       color: 'text-violet-400',
@@ -101,21 +111,21 @@ export default function Dashboard() {
     },
     {
       title: 'Missing Values (Cells)',
-      value: totalMissing.toLocaleString(),
+      value: formatNumberSafe(totalMissing),
       change: 'Null values count',
       icon: Layers,
       color: 'text-pink-400',
     },
     {
       title: 'Duplicate Rows',
-      value: totalDuplicates.toLocaleString(),
+      value: formatNumberSafe(totalDuplicates),
       change: 'Non-unique row entries',
       icon: Percent,
       color: 'text-blue-400',
     },
     {
       title: 'Outliers Flagged',
-      value: totalOutliers.toLocaleString(),
+      value: formatNumberSafe(totalOutliers),
       change: 'Detected IQR violations',
       icon: ShieldAlert,
       color: 'text-red-400',
@@ -220,17 +230,21 @@ export default function Dashboard() {
                         {row.original_filename}
                       </td>
                       <td className="py-3.5 text-gray-300">
-                        {row.total_rows !== undefined ? `${row.total_rows.toLocaleString()} / ${row.total_columns}` : 'N/A'}
+                        {row.total_rows !== null && row.total_rows !== undefined && row.total_columns !== null && row.total_columns !== undefined ? (
+                          `${formatNumberSafe(row.total_rows)} / ${formatNumberSafe(row.total_columns)}`
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="py-3.5">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          (row.health_score || 0) >= 85 
+                          (row.health_score ?? 0) >= 85 
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15' 
-                            : (row.health_score || 0) >= 60 
+                            : (row.health_score ?? 0) >= 60 
                             ? 'bg-amber-500/10 text-amber-400 border border-amber-500/15' 
                             : 'bg-red-500/10 text-red-400 border border-red-500/15'
                         }`}>
-                          {row.health_score !== undefined ? `${row.health_score}%` : 'N/A'}
+                          {row.health_score !== null && row.health_score !== undefined ? `${row.health_score}%` : '-'}
                         </span>
                       </td>
                       <td className="py-3.5 text-gray-300">

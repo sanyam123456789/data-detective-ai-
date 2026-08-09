@@ -43,6 +43,7 @@ export default function DatasetsPage() {
 
   const formatDate = (dateVal: string | number) => {
     try {
+      if (!dateVal) return '-';
       if (typeof dateVal === 'number') {
         return new Date(dateVal * 1000).toLocaleString();
       }

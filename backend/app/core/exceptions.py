@@ -23,3 +23,21 @@ class StorageException(DataDetectiveException):
 class DatabaseException(DataDetectiveException):
     def __init__(self, message: str = "Database operation failure.") -> None:
         super().__init__(message, status_code=500)
+
+
+# ─── Phase 2B: AI Intelligence Layer exceptions ───────────────────────────────
+
+class AIException(DataDetectiveException):
+    """General AI processing error. Does not expose API keys or stack traces."""
+    def __init__(self, message: str = "AI processing failed. Please try again.") -> None:
+        super().__init__(message, status_code=500)
+
+class AIConfigurationException(DataDetectiveException):
+    """Raised when the AI client cannot be initialized (missing/invalid API key)."""
+    def __init__(self, message: str = "AI is not configured. Check your GEMINI_API_KEY.") -> None:
+        super().__init__(message, status_code=500)
+
+class AIUnavailableException(DataDetectiveException):
+    """Raised when Gemini API is temporarily unavailable (rate limits, 5xx errors)."""
+    def __init__(self, message: str = "AI insights are temporarily unavailable. Your dataset profile is still available.") -> None:
+        super().__init__(message, status_code=503)

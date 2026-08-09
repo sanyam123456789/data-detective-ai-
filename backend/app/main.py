@@ -7,6 +7,7 @@ from app.database.base import Base
 from app.database.session import engine
 from app.models.dataset import Dataset
 from app.models.profile import DatasetProfile
+from app.models.ai_insight import AIInsight  # Phase 2B — AI cache table
 from mangum import Mangum
 
 # Automatically bootstrap SQLite database tables

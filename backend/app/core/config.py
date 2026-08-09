@@ -1,6 +1,12 @@
 import os
 from typing import Optional
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
+
+# Force load .env from current directory, parent directory, and project root
+load_dotenv(".env")
+load_dotenv("../.env")
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"))
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
@@ -21,9 +27,18 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: Optional[str] = None
 
+    # AI Settings (Phase 2B / Phase 2C)
+    # Uses official google-genai SDK: from google import genai
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.6-flash"
+    SQL_DIALECT: str = "generic"
+
     class Config:
-        env_file = ".env"
+        env_file = (".env", "../.env")
         env_file_encoding = "utf-8"
         extra = "ignore"
 
-settings = Settings()
+def get_settings() -> Settings:
+    return Settings()
+
+settings = get_settings()

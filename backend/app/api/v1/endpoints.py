@@ -3,9 +3,9 @@ import io
 import csv
 import uuid
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends, Query
 from sqlalchemy.orm import Session
 from app.schemas.upload import UploadResponse, HealthStatus, DatasetItem, DatasetProfileSummary
 from app.services.storage import get_storage_service, StorageService
@@ -15,16 +15,126 @@ from app.core.exceptions import (
     UnsupportedFormatException,
     InvalidFileException,
     StorageException,
-    DatabaseException
+    DatabaseException,
+    AIException,
+    AIConfigurationException,
+    AIUnavailableException,
 )
 from app.database.session import get_db, engine
 from app.models.dataset import Dataset
 from app.models.profile import DatasetProfile
 from app.repositories.dataset_repo import DatasetRepository
 from app.repositories.profile_repo import DatasetProfileRepository
+from app.repositories.ai_insight_repo import AIInsightRepository
 from app.profiling.profiler import DatasetProfiler
 
+# Phase 2B — AI Intelligence Layer
+from app.ai.schemas import (
+    AISummary,
+    AIQualityResponse,
+    AIRecommendationsResponse,
+    AIColumnExplanation,
+    AIColumnRequest,
+    AIChatRequest,
+    AIChatResponse,
+)
+from app.ai.service import AIService
+
+# Phase 2C — AI Data Engineering Code Generator
+from app.code_generation.schemas import (
+    CodeGenerationRequest,
+    SQLGenerationResponse,
+    PySparkGenerationResponse,
+)
+from app.code_generation.service import CodeGenerationService
+
 router = APIRouter()
+
+@router.get("/ai/diagnostic")
+async def ai_diagnostic():
+    """
+    Diagnostic smoke-test endpoint for Gemini connection.
+    Isolates Gemini API call from dataset profiling, database, and schemas.
+    Logs full error details safely to backend console.
+    """
+    import logging
+    import traceback
+    import importlib.metadata
+
+    logger = logging.getLogger("app.ai.diagnostic")
+
+    sdk_version = "Unknown"
+    try:
+        sdk_version = importlib.metadata.version("google-genai")
+    except Exception:
+        pass
+
+    from app.core.config import get_settings
+    from app.ai.client import get_model_name
+    current_settings = get_settings()
+
+    api_key = current_settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or ""
+    model_name = get_model_name()
+
+    if not api_key.strip():
+        logger.error("GEMINI DIAGNOSTIC FAIL: GEMINI_API_KEY is empty or not set.")
+        return {
+            "status": "failed",
+            "error_type": "AIConfigurationException",
+            "error_message": "GEMINI_API_KEY is missing in backend .env settings.",
+            "sdk_version": sdk_version,
+            "model_tested": model_name,
+            "api_key_configured": False,
+        }
+
+    try:
+        from google import genai
+    except ImportError as e:
+        logger.error(f"GEMINI DIAGNOSTIC FAIL: Import error: {e}")
+        return {
+            "status": "failed",
+            "error_type": "ImportError",
+            "error_message": str(e),
+            "sdk_version": sdk_version,
+            "model_tested": model_name,
+            "api_key_configured": True,
+        }
+
+    try:
+        client = genai.Client(api_key=api_key.strip())
+        logger.info(f"GEMINI DIAGNOSTIC: Testing model '{model_name}'...")
+        response = client.models.generate_content(
+            model=model_name,
+            contents="Reply with exactly: Gemini connection successful"
+        )
+        response_text = response.text.strip() if response and response.text else "No text returned"
+        logger.info(f"GEMINI DIAGNOSTIC SUCCESS: {response_text}")
+        return {
+            "status": "success",
+            "response_text": response_text,
+            "sdk_version": sdk_version,
+            "model_tested": model_name,
+            "api_key_configured": True,
+        }
+    except Exception as e:
+        err_type = type(e).__name__
+        err_msg = str(e)
+        # Sanitize any key if present in error string
+        if api_key in err_msg:
+            err_msg = err_msg.replace(api_key, "[MASKED_API_KEY]")
+
+        logger.error(f"GEMINI DIAGNOSTIC FAIL [{err_type}]: {err_msg}")
+        logger.error(traceback.format_exc())
+
+        return {
+            "status": "failed",
+            "error_type": err_type,
+            "error_message": err_msg,
+            "sdk_version": sdk_version,
+            "model_tested": model_name,
+            "api_key_configured": True,
+        }
+
 
 def generate_preview(content: bytes, ext: str) -> List[Dict[str, Any]]:
     """
@@ -244,3 +354,274 @@ async def get_dataset_profile(dataset_id: str, db: Session = Depends(get_db)) ->
         profile_data=parsed_data,
         created_at=profile.created_at.isoformat() if hasattr(profile.created_at, "isoformat") else profile.created_at
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Phase 2B — AI Intelligence Layer Endpoints
+#  All routes go through FastAPI → Gemini (never Next.js → Gemini directly)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_profile_data_or_404(dataset_id: str, db: Session) -> dict:
+    """
+    Shared helper: loads and parses profile JSON for a dataset.
+    Raises HTTP 404 if dataset or profile is not found.
+    """
+    profile = DatasetProfileRepository.get_by_dataset_id(db, dataset_id)
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found for this dataset. Please ensure the dataset was uploaded and profiled successfully."
+        )
+    try:
+        return json.loads(profile.profile_data_json)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to parse dataset profile data."
+        )
+
+
+@router.post("/datasets/{dataset_id}/ai/summary", response_model=AISummary)
+async def ai_summary(
+    dataset_id: str,
+    force_refresh: bool = Query(default=False, description="Force regeneration even if cached"),
+    db: Session = Depends(get_db)
+) -> AISummary:
+    """
+    Feature 1 — AI Executive Summary.
+    Generates a natural-language summary of the dataset based on Phase 2A profiling results.
+    Results are cached; use ?force_refresh=true to regenerate.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    # Check cache first
+    if not force_refresh:
+        cached = AIInsightRepository.get_by_dataset_and_type(db, dataset_id, "summary")
+        if cached:
+            try:
+                data = json.loads(cached.content_json)
+                return AISummary(**data)
+            except Exception:
+                pass  # Cache corrupted — fall through to regenerate
+
+    # Generate via Gemini
+    result = AIService.generate_summary(profile_data)
+
+    # Cache the result
+    try:
+        AIInsightRepository.upsert(db, dataset_id, "summary", result.model_dump())
+    except Exception:
+        pass  # Caching failure must not block the response
+
+    return result
+
+
+@router.post("/datasets/{dataset_id}/ai/quality", response_model=AIQualityResponse)
+async def ai_quality_insights(
+    dataset_id: str,
+    force_refresh: bool = Query(default=False, description="Force regeneration even if cached"),
+    db: Session = Depends(get_db)
+) -> AIQualityResponse:
+    """
+    Feature 2 — Data Quality Insights.
+    Identifies and explains data quality issues in the dataset.
+    Results are cached; use ?force_refresh=true to regenerate.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    if not force_refresh:
+        cached = AIInsightRepository.get_by_dataset_and_type(db, dataset_id, "quality")
+        if cached:
+            try:
+                data = json.loads(cached.content_json)
+                return AIQualityResponse(**data)
+            except Exception:
+                pass
+
+    result = AIService.generate_quality_insights(profile_data)
+
+    try:
+        AIInsightRepository.upsert(db, dataset_id, "quality", result.model_dump())
+    except Exception:
+        pass
+
+    return result
+
+
+@router.post("/datasets/{dataset_id}/ai/recommendations", response_model=AIRecommendationsResponse)
+async def ai_recommendations(
+    dataset_id: str,
+    force_refresh: bool = Query(default=False, description="Force regeneration even if cached"),
+    db: Session = Depends(get_db)
+) -> AIRecommendationsResponse:
+    """
+    Feature 3 — Cleaning Recommendations.
+    Provides prioritized data cleaning recommendations based on profiling results.
+    Does NOT execute any cleaning operations — recommendations only.
+    Results are cached; use ?force_refresh=true to regenerate.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    if not force_refresh:
+        cached = AIInsightRepository.get_by_dataset_and_type(db, dataset_id, "recommendations")
+        if cached:
+            try:
+                data = json.loads(cached.content_json)
+                return AIRecommendationsResponse(**data)
+            except Exception:
+                pass
+
+    result = AIService.generate_recommendations(profile_data)
+
+    try:
+        AIInsightRepository.upsert(db, dataset_id, "recommendations", result.model_dump())
+    except Exception:
+        pass
+
+    return result
+
+
+@router.post("/datasets/{dataset_id}/ai/column", response_model=AIColumnExplanation)
+async def ai_column_explain(
+    dataset_id: str,
+    request: AIColumnRequest,
+    force_refresh: bool = Query(default=False, description="Force regeneration even if cached"),
+    db: Session = Depends(get_db)
+) -> AIColumnExplanation:
+    """
+    Feature 4 — Column Explainer.
+    Provides a detailed AI explanation of a specific column based on profiling statistics.
+    Results are cached per column; use ?force_refresh=true to regenerate.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    column_name = request.column_name.strip()
+    if not column_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="column_name must not be empty."
+        )
+
+    # Validate column exists
+    columns = profile_data.get("columns", {})
+    if column_name not in columns:
+        available = list(columns.keys())[:10]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Column '{column_name}' not found. Available columns: {available}"
+        )
+
+    cache_key = f"column_{column_name}"
+    if not force_refresh:
+        cached = AIInsightRepository.get_by_dataset_and_type(db, dataset_id, cache_key)
+        if cached:
+            try:
+                data = json.loads(cached.content_json)
+                return AIColumnExplanation(**data)
+            except Exception:
+                pass
+
+    result = AIService.explain_column(profile_data, column_name)
+
+    try:
+        AIInsightRepository.upsert(db, dataset_id, cache_key, result.model_dump())
+    except Exception:
+        pass
+
+    return result
+
+
+@router.post("/datasets/{dataset_id}/ai/chat", response_model=AIChatResponse)
+async def ai_chat(
+    dataset_id: str,
+    request: AIChatRequest,
+    db: Session = Depends(get_db)
+) -> AIChatResponse:
+    """
+    Feature 5 — Dataset Chat.
+    Allows users to ask questions about the dataset using natural language.
+    Chat responses are NOT cached (stateless per request with bounded history context).
+    Profile data is loaded from DB; raw CSV is never sent to Gemini.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    message = request.message.strip() if request.message else ""
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chat message cannot be empty."
+        )
+
+    if len(message) > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chat message is too long. Maximum 2000 characters."
+        )
+
+    result = AIService.chat(
+        profile_data=profile_data,
+        message=message,
+        history=request.history,
+        max_history=request.max_history,
+    )
+
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Phase 2C — AI Data Engineering Code Generator Endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/datasets/{dataset_id}/generate/sql", response_model=SQLGenerationResponse)
+async def generate_sql(
+    dataset_id: str,
+    request: CodeGenerationRequest,
+    dialect: Optional[str] = Query(default=None, description="Optional SQL dialect (defaults to configured SQL_DIALECT)"),
+    db: Session = Depends(get_db)
+) -> SQLGenerationResponse:
+    """
+    Phase 2C — SQL Generator.
+    Generates SQL query/transformation code based on dataset schema and natural language instruction.
+    Code is generated for preview/download only — NEVER executed on backend.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    instruction = request.instruction.strip() if request.instruction else ""
+    if not instruction:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Instruction cannot be empty."
+        )
+
+    return CodeGenerationService.generate_sql(
+        profile_data=profile_data,
+        instruction=instruction,
+        dialect=dialect
+    )
+
+
+@router.post("/datasets/{dataset_id}/generate/pyspark", response_model=PySparkGenerationResponse)
+async def generate_pyspark(
+    dataset_id: str,
+    request: CodeGenerationRequest,
+    db: Session = Depends(get_db)
+) -> PySparkGenerationResponse:
+    """
+    Phase 2C — PySpark Generator.
+    Generates PySpark transformation/ETL pipeline code based on dataset schema and natural language instruction.
+    Code is generated for preview/download only — NEVER executed on backend.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+
+    instruction = request.instruction.strip() if request.instruction else ""
+    if not instruction:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Instruction cannot be empty."
+        )
+
+    return CodeGenerationService.generate_pyspark(
+        profile_data=profile_data,
+        instruction=instruction
+    )
+
