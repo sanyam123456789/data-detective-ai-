@@ -1,7 +1,19 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Database, FileSpreadsheet, HardDrive, Plus, RefreshCw, AlertCircle, Trash2, Eye } from 'lucide-react';
+import { 
+  Database, 
+  FileSpreadsheet, 
+  HardDrive, 
+  Plus, 
+  RefreshCw, 
+  AlertCircle, 
+  Trash2, 
+  Eye, 
+  FolderArchive,
+  ArrowRight,
+  FolderOpen
+} from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
@@ -27,7 +39,7 @@ export default function DatasetsPage() {
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/v1/datasets`);
       if (!res.ok) {
-        throw new Error('Failed to fetch datasets list');
+        throw new Error('Failed to retrieve case archives');
       }
       return res.json();
     },
@@ -45,9 +57,19 @@ export default function DatasetsPage() {
     try {
       if (!dateVal) return '-';
       if (typeof dateVal === 'number') {
-        return new Date(dateVal * 1000).toLocaleString();
+        return new Date(dateVal * 1000).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
       }
-      return new Date(dateVal).toLocaleString();
+      return new Date(dateVal).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     } catch {
       return String(dateVal);
     }
@@ -55,123 +77,138 @@ export default function DatasetsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Vault Header Docket */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-ruling pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Ingested Datasets</h1>
-          <p className="text-gray-400 text-sm mt-1">Manage and profile your uploaded data sources.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="stamp-tag stamp-tag-amber">EVIDENCE VAULT</span>
+            <span className="text-xs font-mono text-paper-400">ARCHIVE REF: #VAULT-SEC-03</span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-paper-50">
+            Case Archives & Evidence Vault
+          </h1>
+          <p className="text-xs font-mono text-paper-400 mt-1">
+            INSPECT, MANAGE, AND AUDIT INGESTED DATA DOSSIERS
+          </p>
         </div>
+
         <div className="flex items-center gap-3">
           <button
             id="refresh-datasets-btn"
             onClick={() => refetch()}
             disabled={isLoading || isFetching}
-            className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 rounded-lg text-sm transition-all disabled:opacity-50"
+            className="btn-secondary text-xs"
+            title="Refresh Evidence Vault"
           >
-            <RefreshCw className={`w-4.5 h-4.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <span>Refresh Vault</span>
           </button>
+          
           <Link
             id="add-dataset-datasets-btn"
             href="/upload"
-            className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-all hover:scale-105 shadow-md flex items-center justify-center gap-2"
+            className="btn-primary text-xs"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Dataset</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Ingest Specimen</span>
           </Link>
         </div>
       </div>
 
-      {/* Loading state */}
+      {/* Loading State */}
       {isLoading && (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <RefreshCw className="w-8 h-8 text-violet-500 animate-spin" />
-          <p className="text-sm text-gray-400">Loading datasets list...</p>
+        <div className="flex flex-col items-center justify-center py-20 gap-3 font-mono text-xs text-paper-400">
+          <RefreshCw className="w-6 h-6 text-evidence-amber animate-spin" />
+          <span>ACCESSING ENCRYPTED EVIDENCE VAULT...</span>
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error State */}
       {error && (
-        <div className="p-5 rounded-lg bg-red-500/5 text-red-300 border border-red-500/10 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
-          <div className="space-y-1 text-xs">
-            <p className="font-bold">Failed to load datasets</p>
-            <p className="text-gray-400">Please make sure the backend server is running. (Error: {(error as any).message})</p>
+        <div className="p-4 rounded bg-ink-950 text-evidence-crimson border border-evidence-crimson/40 font-mono text-xs flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 shrink-0 text-evidence-crimson mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold uppercase tracking-wider">FAILED TO RETRIEVE EVIDENCE ARCHIVES</p>
+            <p className="text-paper-300 font-body">
+              Ensure the backend FastAPI forensic server is reachable at <code className="text-evidence-amber">{apiUrl}</code>.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Success empty list */}
+      {/* Empty State */}
       {!isLoading && !error && (!datasets || datasets.length === 0) && (
-        <div className="glass-card p-12 text-center flex flex-col items-center justify-center gap-4">
-          <div className="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center text-gray-400">
-            <Database className="w-7 h-7" />
+        <div className="ledger-card p-12 text-center flex flex-col items-center justify-center gap-4 font-mono">
+          <div className="w-12 h-12 rounded bg-ink-800 border border-ruling flex items-center justify-center text-evidence-amber">
+            <FolderArchive className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-md font-bold text-white">No datasets uploaded yet</h3>
-            <p className="text-sm text-gray-400 max-w-sm mx-auto">
-              Get started by uploading your first CSV or Excel file. We will process and index it instantly.
+            <h3 className="text-sm font-bold text-paper-100 uppercase">Evidence Vault is Currently Empty</h3>
+            <p className="text-xs text-paper-400 font-body max-w-sm mx-auto">
+              No data specimens have been filed into the archive. Ingest your first CSV or Excel file to begin automated forensic profiling.
             </p>
           </div>
           <Link
             href="/upload"
-            className="mt-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-all"
+            className="btn-primary text-xs mt-2"
           >
-            Upload Now
+            <span>Open First Case Intake</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       )}
 
-      {/* Datasets list */}
+      {/* Grid of Case Dossier Cards */}
       {!isLoading && !error && datasets && datasets.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {datasets.map((dataset, i) => (
-            <motion.div
+            <div
               key={dataset.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
-              className="glass-card p-6 flex flex-col justify-between gap-5"
+              className="ledger-card p-5 flex flex-col justify-between gap-5 group"
             >
               <div className="space-y-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
-                    <FileSpreadsheet className="w-5.5 h-5.5" />
+                {/* Dossier Card Header */}
+                <div className="flex items-center justify-between gap-3 border-b border-ruling pb-3">
+                  <div className="w-8 h-8 rounded bg-ink-850 border border-ruling flex items-center justify-center text-evidence-amber shrink-0 font-mono text-xs font-bold">
+                    #{String(i + 1).padStart(2, '0')}
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-white/5 text-gray-400 border border-white/5">
-                    <HardDrive className="w-3 h-3 text-violet-400" />
+                  <span className="stamp-tag stamp-tag-muted text-[10px]">
+                    <HardDrive className="w-3 h-3 text-evidence-cyan" />
                     <span>{dataset.storage_type}</span>
                   </span>
                 </div>
+
+                {/* File Details */}
                 <div>
-                  <h3 className="text-sm font-bold text-white truncate hover:text-clip" title={dataset.original_filename}>
+                  <h3 className="font-mono text-xs font-bold text-paper-100 truncate group-hover:text-evidence-amber transition-colors" title={dataset.original_filename}>
                     {dataset.original_filename}
                   </h3>
-                  <p className="text-xs text-gray-400 mt-1">{formatBytes(dataset.file_size)}</p>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-paper-400 mt-1">
+                    <span>SIZE: {formatBytes(dataset.file_size)}</span>
+                    <span>•</span>
+                    <span>EXT: {dataset.file_extension || 'CSV'}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-gray-500 font-medium">
+              {/* Dossier Footer Actions */}
+              <div className="pt-3 border-t border-ruling flex items-center justify-between gap-2 font-mono">
+                <span className="text-[10px] text-paper-400">
                   {formatDate(dataset.created_at)}
                 </span>
-                <div className="flex gap-2">
+                
+                <div className="flex items-center gap-2">
                   <Link 
                     href={`/datasets/${dataset.id}`}
-                    title="View profiling details"
-                    className="p-1.5 bg-white/5 border border-white/5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center"
+                    className="btn-primary text-[11px] py-1 px-3"
+                    title="Open Case Dossier"
                   >
-                    <Eye className="w-4 h-4" />
+                    <FolderOpen className="w-3 h-3" />
+                    <span>Inspect</span>
                   </Link>
-                  <button 
-                    title="Delete (disabled in Phase 1)"
-                    disabled
-                    className="p-1.5 bg-white/5 border border-white/5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-50 cursor-not-allowed"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </section>
       )}

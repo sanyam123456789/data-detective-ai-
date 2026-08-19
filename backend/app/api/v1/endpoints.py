@@ -3,11 +3,13 @@ import io
 import csv
 import uuid
 import json
+import logging
 from typing import List, Dict, Any, Optional
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.schemas.upload import UploadResponse, HealthStatus, DatasetItem, DatasetProfileSummary
+from app.schemas.pipeline import PipelineStatusResponse, PipelineTriggerResponse, AthenaQueryRequest, AthenaQueryResponse
 from app.services.storage import get_storage_service, StorageService
 from app.core.config import settings
 from app.core.exceptions import (
@@ -19,6 +21,10 @@ from app.core.exceptions import (
     AIException,
     AIConfigurationException,
     AIUnavailableException,
+    AWSUnavailableException,
+    AthenaQueryException,
+    UnsafeSQLException,
+    AthenaException,
 )
 from app.database.session import get_db, engine
 from app.models.dataset import Dataset
@@ -48,6 +54,13 @@ from app.code_generation.schemas import (
 )
 from app.code_generation.service import CodeGenerationService
 
+# Phase 2D — AWS Data Engineering Pipeline
+from app.data_engineering.aws_client import is_aws_configured
+from app.data_engineering.pipeline import run_pipeline, STATUS_LOCAL
+from app.data_engineering.catalog_service import safe_table_name
+
+logger = logging.getLogger("app.api.v1.endpoints")
+
 router = APIRouter()
 
 @router.get("/ai/diagnostic")
@@ -57,11 +70,8 @@ async def ai_diagnostic():
     Isolates Gemini API call from dataset profiling, database, and schemas.
     Logs full error details safely to backend console.
     """
-    import logging
     import traceback
     import importlib.metadata
-
-    logger = logging.getLogger("app.ai.diagnostic")
 
     sdk_version = "Unknown"
     try:
@@ -168,13 +178,14 @@ def generate_preview(content: bytes, ext: str) -> List[Dict[str, Any]]:
             return df.to_dict(orient="records")
             
     except Exception as e:
-        raise InvalidFileException(f"Failed to generate file preview: {str(e)}")
+        raise InvalidFileException(f"Failed to generate file preview: {str(e)}") from e
     return []
 
 @router.get("/health", response_model=HealthStatus)
 async def health_check() -> HealthStatus:
     """
     Check the connectivity of downstream databases and cloud storage providers.
+    Phase 2D: also reports AWS and Athena availability.
     """
     db_connected = False
     try:
@@ -183,20 +194,32 @@ async def health_check() -> HealthStatus:
     except Exception:
         pass
 
+    aws_configured = is_aws_configured()
+    athena_configured = aws_configured and bool(
+        settings.ATHENA_WORKGROUP and (settings.ATHENA_OUTPUT_LOCATION or settings.S3_BUCKET_NAME)
+    )
+
     return HealthStatus(
         status="healthy",
         environment=settings.ENVIRONMENT,
         storage_provider=settings.STORAGE_PROVIDER,
         s3_bucket_configured=bool(settings.S3_BUCKET_NAME),
-        database_connected=db_connected
+        database_connected=db_connected,
+        aws_configured=aws_configured,
+        athena_configured=athena_configured,
     )
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get_db)) -> UploadResponse:
+async def upload_dataset(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+) -> UploadResponse:
     """
     Upload and profile dataset.
     Validates file formats/size limits, generates transient preview, assigns UUID storage key,
     uploads to storage, processes pandas profiling computations, saves metadata, and records profile inside SQLite DB.
+    Phase 2D: triggers AWS data engineering pipeline as a background task when S3 is configured.
     """
     filename = file.filename or "unnamed_file"
     _, ext = os.path.splitext(filename)
@@ -222,7 +245,7 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
     except InvalidFileException as ife:
         raise ife
     except Exception as e:
-        raise InvalidFileException(f"Profiling failed: {str(e)}")
+        raise InvalidFileException(f"Profiling failed: {str(e)}") from e
 
     # 5. Generate UUID name
     stored_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
@@ -238,7 +261,7 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
     if not storage_result.get("success", False):
         raise StorageException(f"Failed to save file content to storage: {storage_result.get('error')}")
 
-    # 7. Metadata DB entry
+    # 7. Metadata DB entry — initial pipeline_status = LOCAL
     db_dataset = Dataset(
         original_filename=filename,
         stored_filename=stored_filename,
@@ -247,13 +270,14 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
         file_extension=ext,
         mime_type=file.content_type or "application/octet-stream",
         storage_path=storage_result["storage_path"],
-        upload_status="COMPLETED"
+        upload_status="COMPLETED",
+        pipeline_status=STATUS_LOCAL,
     )
     
     try:
         saved_dataset = DatasetRepository.create(db, db_dataset)
     except Exception as e:
-        raise DatabaseException(f"Metadata write failed: {str(e)}")
+        raise DatabaseException(f"Metadata write failed: {str(e)}") from e
 
     # 8. Record Profiler stats inside SQLite
     db_profile = DatasetProfile(
@@ -271,7 +295,20 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
     try:
         DatasetProfileRepository.create(db, db_profile)
     except Exception as e:
-        raise DatabaseException(f"Profile details write failed: {str(e)}")
+        raise DatabaseException(f"Profile details write failed: {str(e)}") from e
+
+    # 9. Phase 2D: Trigger AWS pipeline as background task (non-blocking)
+    detected_types = profile_dict.get("detected_data_types", {})
+    background_tasks.add_task(
+        run_pipeline,
+        dataset_id=saved_dataset.id,
+        content=content,
+        original_filename=filename,
+        file_extension=ext,
+        content_type=file.content_type or "application/octet-stream",
+        detected_types=detected_types,
+        db=db,
+    )
 
     return UploadResponse(
         id=saved_dataset.id,
@@ -287,13 +324,15 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
         preview=preview_data,
         health_score=profile_dict["health_score"],
         total_rows=profile_dict["total_rows"],
-        total_columns=profile_dict["total_columns"]
+        total_columns=profile_dict["total_columns"],
+        pipeline_status=saved_dataset.pipeline_status,
     )
 
 @router.get("/datasets", response_model=List[DatasetItem])
 async def list_datasets(db: Session = Depends(get_db)) -> List[DatasetItem]:
     """
     List all uploaded dataset records joined with their profile totals.
+    Phase 2D: includes pipeline_status, catalog_table, catalog_database.
     """
     try:
         datasets = DatasetRepository.get_all(db)
@@ -318,11 +357,14 @@ async def list_datasets(db: Session = Depends(get_db)) -> List[DatasetItem]:
                 total_missing_values=profile.total_missing_values if profile else None,
                 total_duplicate_rows=profile.total_duplicate_rows if profile else None,
                 memory_usage_bytes=profile.memory_usage_bytes if profile else None,
-                total_outliers=profile.total_outliers if profile else None
+                total_outliers=profile.total_outliers if profile else None,
+                pipeline_status=d.pipeline_status,
+                catalog_table=d.catalog_table,
+                catalog_database=d.catalog_database,
             ))
         return items
     except Exception as e:
-        raise DatabaseException(f"Failed to query datasets list: {str(e)}")
+        raise DatabaseException(f"Failed to query datasets list: {str(e)}") from e
 
 @router.get("/datasets/{dataset_id}/profile", response_model=DatasetProfileSummary)
 async def get_dataset_profile(dataset_id: str, db: Session = Depends(get_db)) -> DatasetProfileSummary:
@@ -353,6 +395,178 @@ async def get_dataset_profile(dataset_id: str, db: Session = Depends(get_db)) ->
         total_outliers=profile.total_outliers,
         profile_data=parsed_data,
         created_at=profile.created_at.isoformat() if hasattr(profile.created_at, "isoformat") else profile.created_at
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Phase 2D — AWS Data Engineering Pipeline Endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/datasets/{dataset_id}/pipeline", response_model=PipelineStatusResponse)
+async def get_pipeline_status(dataset_id: str, db: Session = Depends(get_db)) -> PipelineStatusResponse:
+    """
+    Phase 2D — Get the AWS pipeline status for a dataset.
+    Returns S3 keys, Glue catalog info, and Athena table name.
+    """
+    dataset = DatasetRepository.get_by_id(db, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found.")
+
+    aws_avail = is_aws_configured()
+    athena_table = None
+    if dataset.catalog_database and dataset.catalog_table:
+        athena_table = f'"{dataset.catalog_database}"."{dataset.catalog_table}"'
+
+    return PipelineStatusResponse(
+        dataset_id=dataset_id,
+        pipeline_status=dataset.pipeline_status or "LOCAL",
+        storage_provider=dataset.storage_type,
+        raw_s3_key=dataset.raw_s3_key,
+        curated_s3_key=dataset.curated_s3_key,
+        catalog_database=dataset.catalog_database,
+        catalog_table=dataset.catalog_table,
+        pipeline_error=dataset.pipeline_error,
+        processed_at=dataset.processed_at.isoformat() if dataset.processed_at else None,
+        aws_configured=aws_avail,
+        athena_query_table=athena_table,
+    )
+
+
+@router.post("/datasets/{dataset_id}/pipeline/process", response_model=PipelineTriggerResponse)
+async def trigger_pipeline(
+    dataset_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> PipelineTriggerResponse:
+    """
+    Phase 2D — Manually trigger (or re-trigger) the AWS pipeline for a dataset.
+    Retrieves the stored file content and runs the full pipeline in the background.
+    """
+    dataset = DatasetRepository.get_by_id(db, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found.")
+
+    if not is_aws_configured():
+        return PipelineTriggerResponse(
+            dataset_id=dataset_id,
+            message="AWS is not configured. Local mode is active. Set STORAGE_PROVIDER=s3 and configure S3_BUCKET_NAME.",
+            pipeline_status="LOCAL",
+        )
+
+    # Load profile for detected_types
+    profile = DatasetProfileRepository.get_by_dataset_id(db, dataset_id)
+    detected_types: Dict[str, str] = {}
+    if profile:
+        try:
+            profile_data = json.loads(profile.profile_data_json)
+            detected_types = profile_data.get("detected_data_types", {})
+        except Exception:
+            pass
+
+    # Read file content from local storage or S3 for re-processing
+    try:
+        if dataset.storage_type == "LOCAL" and os.path.exists(dataset.storage_path):
+            with open(dataset.storage_path, "rb") as f:
+                content = f.read()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot re-process: original file is no longer accessible locally. "
+                       "Upload the file again to trigger the pipeline."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read stored file: {str(e)}"
+        )
+
+    background_tasks.add_task(
+        run_pipeline,
+        dataset_id=dataset_id,
+        content=content,
+        original_filename=dataset.original_filename,
+        file_extension=dataset.file_extension,
+        content_type=dataset.mime_type,
+        detected_types=detected_types,
+        db=db,
+    )
+
+    DatasetRepository.update_pipeline_fields(db, dataset_id, pipeline_status="PROCESSING")
+
+    return PipelineTriggerResponse(
+        dataset_id=dataset_id,
+        message="Pipeline triggered. Processing in the background — check /pipeline for status updates.",
+        pipeline_status="PROCESSING",
+    )
+
+
+@router.post("/datasets/{dataset_id}/query", response_model=AthenaQueryResponse)
+async def run_athena_query(
+    dataset_id: str,
+    request: AthenaQueryRequest,
+    db: Session = Depends(get_db),
+) -> AthenaQueryResponse:
+    """
+    Phase 2D — Execute a read-only SQL query against the dataset's Athena table.
+    
+    - SQL is validated for safety (SELECT only, no destructive statements)
+    - Uses the data-detective workgroup with 100MB scan limit
+    - Returns up to 1000 rows (default 100)
+    - Never exposes AWS credentials to the frontend
+    """
+    if not is_aws_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Athena is not available: AWS is not configured. Set STORAGE_PROVIDER=s3 and configure S3/Athena settings."
+        )
+
+    dataset = DatasetRepository.get_by_id(db, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found.")
+
+    if not dataset.catalog_table:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dataset has no Athena table registered. The pipeline must complete (status=READY) before querying."
+        )
+
+    from app.data_engineering.athena_service import run_query, validate_sql
+    from app.core.exceptions import UnsafeSQLException, AthenaQueryException, AthenaException
+
+    database = request.database or settings.ATHENA_DATABASE
+
+    try:
+        result = run_query(
+            sql=request.sql,
+            database=database,
+            max_rows=request.max_rows,
+        )
+    except UnsafeSQLException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except AthenaQueryException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except AthenaException as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Query] Unexpected error for dataset_id={dataset_id}: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while executing the query."
+        )
+
+    data_scanned_mb = round(result["data_scanned_bytes"] / (1024 * 1024), 4)
+
+    return AthenaQueryResponse(
+        query_execution_id=result["query_execution_id"],
+        status=result["status"],
+        columns=result["columns"],
+        rows=result["rows"],
+        row_count=result["row_count"],
+        execution_time_ms=result["execution_time_ms"],
+        data_scanned_bytes=result["data_scanned_bytes"],
+        data_scanned_mb=data_scanned_mb,
     )
 
 
@@ -624,4 +838,3 @@ async def generate_pyspark(
         profile_data=profile_data,
         instruction=instruction
     )
-

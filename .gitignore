@@ -21,11 +21,17 @@ env/
 *.sqlite
 *.sqlite3
 
-# Environment Variables
+# Environment Variables — NEVER commit real .env files
 .env
 .env.local
 .env.development
 .env.production
+
+# AWS Credentials — NEVER commit these
+.aws/credentials
+.aws/config
+aws-credentials.json
+**/aws-exports.js
 
 # Logs
 *.log
@@ -51,9 +57,18 @@ tmp/
 temp/
 *.tmp
 
-# Uploads
+# Uploads (local dev storage)
 backend/uploads/
 backend/data/uploads/
 backend/data/processed/
 backend/data/reports/
 backend/data/temp/
+backend/test_uploads/
+
+# Phase 2D: Athena query result temp files
+athena-results/
+*.athena.csv
+
+# Build artifacts
+*.egg-info/
+dist/

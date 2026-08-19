@@ -16,6 +16,8 @@ class UploadResponse(BaseModel):
     health_score: int
     total_rows: int
     total_columns: int
+    # Phase 2D: pipeline initial status
+    pipeline_status: Optional[str] = None
 
 class HealthStatus(BaseModel):
     status: str
@@ -23,6 +25,9 @@ class HealthStatus(BaseModel):
     storage_provider: str
     s3_bucket_configured: bool
     database_connected: bool
+    # Phase 2D: AWS availability flags
+    aws_configured: bool = False
+    athena_configured: bool = False
 
 class DatasetItem(BaseModel):
     id: str
@@ -44,6 +49,10 @@ class DatasetItem(BaseModel):
     total_duplicate_rows: Optional[int] = None
     memory_usage_bytes: Optional[int] = None
     total_outliers: Optional[int] = None
+    # Phase 2D: pipeline fields (nullable — local mode omits these)
+    pipeline_status: Optional[str] = None
+    catalog_table: Optional[str] = None
+    catalog_database: Optional[str] = None
 
 class DatasetProfileSummary(BaseModel):
     id: str

@@ -41,3 +41,43 @@ class AIUnavailableException(DataDetectiveException):
     """Raised when Gemini API is temporarily unavailable (rate limits, 5xx errors)."""
     def __init__(self, message: str = "AI insights are temporarily unavailable. Your dataset profile is still available.") -> None:
         super().__init__(message, status_code=503)
+
+
+# ─── Phase 2D: AWS Data Engineering exceptions ────────────────────────────────
+
+class AWSUnavailableException(DataDetectiveException):
+    """Raised when AWS credentials are unavailable or misconfigured.
+    Never exposes credential details in the message."""
+    def __init__(self, message: str = "AWS is not configured or credentials are unavailable. Local mode is active.") -> None:
+        super().__init__(message, status_code=503)
+
+class AWSException(DataDetectiveException):
+    """General AWS service error. Never exposes credentials or internal ARNs."""
+    def __init__(self, message: str = "AWS service error. Please check configuration.") -> None:
+        super().__init__(message, status_code=500)
+
+class S3Exception(AWSException):
+    """Raised on S3 upload/download failures."""
+    def __init__(self, message: str = "S3 storage operation failed.") -> None:
+        super().__init__(message)
+
+class GlueException(AWSException):
+    """Raised on Glue Data Catalog failures."""
+    def __init__(self, message: str = "Glue Data Catalog operation failed.") -> None:
+        super().__init__(message)
+
+class AthenaException(AWSException):
+    """Raised on Athena query failures."""
+    def __init__(self, message: str = "Athena query failed.") -> None:
+        super().__init__(message)
+
+class AthenaQueryException(DataDetectiveException):
+    """Raised when an Athena query fails due to bad SQL, data limit, or timeout.
+    status_code 400 because it's a client-side query problem."""
+    def __init__(self, message: str = "Athena query execution failed.") -> None:
+        super().__init__(message, status_code=400)
+
+class UnsafeSQLException(DataDetectiveException):
+    """Raised when submitted SQL contains destructive or disallowed statements."""
+    def __init__(self, message: str = "Unsafe or disallowed SQL statement detected. Only read-only SELECT queries are permitted.") -> None:
+        super().__init__(message, status_code=400)

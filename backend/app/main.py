@@ -10,13 +10,14 @@ from app.models.profile import DatasetProfile
 from app.models.ai_insight import AIInsight  # Phase 2B — AI cache table
 from mangum import Mangum
 
-# Automatically bootstrap SQLite database tables
+# Automatically bootstrap SQLite database tables.
+# Phase 2D: new nullable columns on Dataset are auto-added by create_all (SQLite).
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Data Detective AI - Engine API",
     description="Refactored API for Data Detective AI. Implements database persistence and storage layer abstractions.",
-    version="1.1.0"
+    version="1.2.0"  # Phase 2D
 )
 
 # Configure CORS to support frontend connections

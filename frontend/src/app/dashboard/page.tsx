@@ -2,7 +2,22 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Database, Activity, CheckCircle, HardDrive, ArrowUpRight, TrendingUp, AlertTriangle, RefreshCw, Eye, Percent, Layers, ShieldAlert } from 'lucide-react';
+import { 
+  Database, 
+  Activity, 
+  CheckCircle2, 
+  HardDrive, 
+  ArrowUpRight, 
+  TrendingUp, 
+  AlertTriangle, 
+  RefreshCw, 
+  Eye, 
+  Layers, 
+  ShieldAlert,
+  FileSpreadsheet,
+  FileCode,
+  FolderOpen
+} from 'lucide-react';
 import Link from 'next/link';
 
 interface Dataset {
@@ -52,7 +67,12 @@ export default function Dashboard() {
   const formatDate = (dateVal: string) => {
     try {
       if (!dateVal) return '-';
-      return new Date(dateVal).toLocaleString();
+      return new Date(dateVal).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     } catch {
       return dateVal;
     }
@@ -63,9 +83,7 @@ export default function Dashboard() {
     return val.toLocaleString();
   };
 
-  // Aggregated data calculations
   const totalDatasets = datasets?.length || 0;
-  
   const hasProfiles = datasets?.some(item => item.health_score !== null && item.health_score !== undefined) ?? false;
 
   const totalRows = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_rows ?? 0), 0) ?? 0 : null;
@@ -80,219 +98,284 @@ export default function Dashboard() {
   const totalMemoryBytes = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.memory_usage_bytes ?? 0), 0) ?? 0 : null;
   const totalOutliers = hasProfiles ? datasets?.reduce((sum, item) => sum + (item.total_outliers ?? 0), 0) ?? 0 : null;
 
-  const cards = [
+  const forensicKpis = [
     {
-      title: 'Health Score (Avg)',
+      label: 'AVERAGE INTEGRITY VERDICT',
       value: avgHealthScore,
-      change: 'Calculated across profiles',
-      icon: CheckCircle,
-      color: 'text-emerald-400',
+      meta: 'Across all verified profiles',
+      stamp: 'HEALTH',
+      stampType: 'stamp-tag-emerald',
+      icon: CheckCircle2,
     },
     {
-      title: 'Rows Processed',
+      label: 'TOTAL ROWS AUDITED',
       value: formatNumberSafe(totalRows),
-      change: 'Total ingested data rows',
+      meta: 'Ingested data coordinates',
+      stamp: 'RECORDS',
+      stampType: 'stamp-tag-cyan',
       icon: Activity,
-      color: 'text-indigo-400',
     },
     {
-      title: 'Columns Ingested',
+      label: 'SCHEMAS DISSECTED',
       value: formatNumberSafe(totalColumns),
-      change: 'Total schemas mapped',
+      meta: 'Distinct column profiles',
+      stamp: 'SCHEMA',
+      stampType: 'stamp-tag-muted',
       icon: Database,
-      color: 'text-violet-400',
     },
     {
-      title: 'Memory Footprint',
+      label: 'MEMORY ALLOCATION',
       value: formatBytes(totalMemoryBytes),
-      change: 'Processed RAM footprint',
+      meta: 'Active RAM footprint',
+      stamp: 'FOOTPRINT',
+      stampType: 'stamp-tag-muted',
       icon: HardDrive,
-      color: 'text-amber-400',
     },
     {
-      title: 'Missing Values (Cells)',
+      label: 'NULL VALUES FLAGGED',
       value: formatNumberSafe(totalMissing),
-      change: 'Null values count',
+      meta: 'Missing cell anomalies',
+      stamp: 'MISSING',
+      stampType: 'stamp-tag-amber',
       icon: Layers,
-      color: 'text-pink-400',
     },
     {
-      title: 'Duplicate Rows',
+      label: 'DUPLICATE ENTRIES',
       value: formatNumberSafe(totalDuplicates),
-      change: 'Non-unique row entries',
-      icon: Percent,
-      color: 'text-blue-400',
+      meta: 'Identical row signatures',
+      stamp: 'DUPLICATES',
+      stampType: 'stamp-tag-amber',
+      icon: FileSpreadsheet,
     },
     {
-      title: 'Outliers Flagged',
+      label: 'STATISTICAL OUTLIERS',
       value: formatNumberSafe(totalOutliers),
-      change: 'Detected IQR violations',
+      meta: 'IQR boundary infractions',
+      stamp: 'ANOMALY',
+      stampType: 'stamp-tag-crimson',
       icon: ShieldAlert,
-      color: 'text-red-400',
     },
   ];
 
-  const insights = [
-    { type: 'info', text: 'Central SQLite database records all dataset profiles. Visualizations rendered dynamically in dataset pages.' },
-    { type: 'warning', text: 'Total Outlier count lists values outside 1.5 * IQR boundaries in numeric columns.' },
-    { type: 'success', text: 'Datasets index automatically links to detailed diagnostics gauges and charts.' },
-  ];
-
-  const recentDatasetsList = datasets?.slice(0, 5) || [];
+  const recentDatasetsList = datasets?.slice(0, 6) || [];
 
   return (
-    <div className="space-y-10">
-      {/* Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8">
+      {/* Investigation Board Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-ruling pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">System Dashboard</h1>
-          <p className="text-gray-400 text-sm mt-1">Overview of your ingested datasets and quality profiles.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="stamp-tag stamp-tag-amber">FORENSIC LEDGER</span>
+            <span className="text-xs font-mono text-paper-400">BOARD REF: #INV-CENTRAL-01</span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-paper-50">
+            Investigation Board
+          </h1>
+          <p className="text-xs font-mono text-paper-400 mt-1">
+            REAL-TIME METRICS & ACTIVE EVIDENCE DOSSIERS
+          </p>
         </div>
+
         <div className="flex items-center gap-3">
           <button
             id="refresh-dashboard-btn"
             onClick={() => refetch()}
             disabled={isLoading || isFetching}
-            className="p-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 rounded-lg text-sm transition-all disabled:opacity-50"
+            className="btn-secondary text-xs"
+            title="Refresh Forensic Registry"
           >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <span>Refresh Ledger</span>
           </button>
+          
           <Link 
             id="upload-dataset-dashboard-btn"
             href="/upload"
-            className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold transition-all hover:scale-105 shadow-md flex items-center justify-center gap-2"
+            className="btn-primary text-xs"
           >
-            <span>Upload Dataset</span>
-            <ArrowUpRight className="w-4 h-4" />
+            <span>Intake New Case</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        {cards.map((card, i) => {
-          const Icon = card.icon;
+      {/* Forensic KPI Metric Tiles */}
+      <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {forensicKpis.map((kpi) => {
+          const Icon = kpi.icon;
           return (
-            <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="glass-card p-6 flex flex-col justify-between gap-4 relative overflow-hidden"
+            <div
+              key={kpi.label}
+              className="ledger-card p-4 flex flex-col justify-between gap-3"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-400 truncate pr-2">{card.title}</span>
-                <div className={`p-2 bg-white/5 rounded-lg shrink-0 ${card.color}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
+              <div className="flex items-start justify-between gap-2 border-b border-ruling pb-2">
+                <span className="text-[10px] font-mono text-paper-400 font-bold uppercase tracking-wider truncate">
+                  {kpi.label}
+                </span>
+                <span className={`stamp-tag ${kpi.stampType} text-[9px]`}>
+                  {kpi.stamp}
+                </span>
               </div>
+
               <div>
-                <span className="text-2xl font-extrabold text-white">{card.value}</span>
-                <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3 text-emerald-400" />
-                  <span>{card.change}</span>
+                <div className="text-2xl font-mono font-bold text-paper-50">
+                  {kpi.value}
+                </div>
+                <div className="text-[10px] font-mono text-paper-400 mt-0.5">
+                  {kpi.meta}
                 </div>
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </section>
 
+      {/* Main Ledger Table & Forensic Audit Feed */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Uploads Table */}
-        <div className="lg:col-span-2 glass-card p-6 space-y-4">
-          <h3 className="text-lg font-bold text-white">Recent Uploaded Datasets</h3>
+        {/* Table: Active Evidence Dossiers */}
+        <div className="lg:col-span-2 ledger-card">
+          <div className="ledger-header flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <FolderOpen className="w-3.5 h-3.5 text-evidence-amber" />
+              <span>Active Case Dossiers ({totalDatasets})</span>
+            </span>
+            <span className="text-[10px] text-paper-400">CHRONOLOGICAL AUDIT</span>
+          </div>
+
           <div className="overflow-x-auto w-full">
             {isLoading ? (
-              <div className="flex items-center justify-center py-10 gap-2 text-sm text-gray-400">
-                <RefreshCw className="w-4 h-4 animate-spin text-violet-500" />
-                <span>Loading recent datasets...</span>
+              <div className="flex items-center justify-center py-12 gap-2 text-xs font-mono text-paper-400">
+                <RefreshCw className="w-4 h-4 animate-spin text-evidence-amber" />
+                <span>Extracting case files from vault...</span>
               </div>
             ) : recentDatasetsList.length === 0 ? (
-              <div className="text-center py-10 text-xs text-gray-500 font-medium">
-                No datasets uploaded yet. Click "Upload Dataset" to begin.
+              <div className="p-8 text-center space-y-3 font-mono">
+                <div className="w-10 h-10 rounded bg-ink-800 border border-ruling mx-auto flex items-center justify-center text-paper-400">
+                  <Database className="w-5 h-5" />
+                </div>
+                <p className="text-xs text-paper-300 font-bold">No active cases registered in ledger</p>
+                <p className="text-[11px] text-paper-400 max-w-xs mx-auto">
+                  Submit a dataset to initialize automated profiling and anomaly detection.
+                </p>
+                <Link href="/upload" className="btn-primary text-xs inline-flex mt-2">
+                  Open Case File
+                </Link>
               </div>
             ) : (
-              <table className="w-full text-left text-sm text-gray-400 border-collapse">
+              <table className="forensic-table">
                 <thead>
-                  <tr className="border-b border-white/5 text-xs text-gray-500 uppercase tracking-wider">
-                    <th className="pb-3 pt-2 font-semibold">Filename</th>
-                    <th className="pb-3 pt-2 font-semibold">Rows / Cols</th>
-                    <th className="pb-3 pt-2 font-semibold">Health Score</th>
-                    <th className="pb-3 pt-2 font-semibold">Storage Type</th>
-                    <th className="pb-3 pt-2 font-semibold">Action</th>
+                  <tr>
+                    <th>Case Docket / File</th>
+                    <th>Coordinates</th>
+                    <th>Integrity Score</th>
+                    <th>Custody</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
-                  {recentDatasetsList.map((row) => (
-                    <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-3.5 pr-3 text-white font-medium truncate max-w-[180px]" title={row.original_filename}>
-                        {row.original_filename}
-                      </td>
-                      <td className="py-3.5 text-gray-300">
-                        {row.total_rows !== null && row.total_rows !== undefined && row.total_columns !== null && row.total_columns !== undefined ? (
-                          `${formatNumberSafe(row.total_rows)} / ${formatNumberSafe(row.total_columns)}`
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td className="py-3.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          (row.health_score ?? 0) >= 85 
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15' 
-                            : (row.health_score ?? 0) >= 60 
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/15' 
-                            : 'bg-red-500/10 text-red-400 border border-red-500/15'
-                        }`}>
-                          {row.health_score !== null && row.health_score !== undefined ? `${row.health_score}%` : '-'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 text-gray-300">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] bg-white/5 border border-white/5 font-bold uppercase text-gray-400">
-                          {row.storage_type}
-                        </span>
-                      </td>
-                      <td className="py-3.5">
-                        <Link 
-                          href={`/datasets/${row.id}`}
-                          title="View profiling details"
-                          className="p-1 text-gray-400 hover:text-white transition-all flex items-center justify-center w-7 h-7 hover:bg-white/5 rounded-lg border border-white/5"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {recentDatasetsList.map((row) => {
+                    const health = row.health_score ?? null;
+                    let stampClass = 'stamp-tag-muted';
+                    let stampLabel = 'UNPROFILED';
+                    if (health !== null) {
+                      if (health >= 85) {
+                        stampClass = 'stamp-tag-emerald';
+                        stampLabel = `${health}% VERIFIED`;
+                      } else if (health >= 60) {
+                        stampClass = 'stamp-tag-amber';
+                        stampLabel = `${health}% FLAGGED`;
+                      } else {
+                        stampClass = 'stamp-tag-crimson';
+                        stampLabel = `${health}% CRITICAL`;
+                      }
+                    }
+
+                    return (
+                      <tr key={row.id}>
+                        <td>
+                          <div className="font-mono text-xs font-bold text-paper-100 truncate max-w-[200px]" title={row.original_filename}>
+                            {row.original_filename}
+                          </div>
+                          <div className="text-[10px] font-mono text-paper-400 mt-0.5">
+                            TAG: #{row.id.slice(0, 8)} • {formatDate(row.created_at)}
+                          </div>
+                        </td>
+                        <td className="font-mono text-xs text-paper-300">
+                          {row.total_rows !== null && row.total_rows !== undefined && row.total_columns !== null && row.total_columns !== undefined ? (
+                            `${formatNumberSafe(row.total_rows)}R × ${formatNumberSafe(row.total_columns)}C`
+                          ) : (
+                            <span className="text-paper-400">-</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`stamp-tag ${stampClass} text-[9px]`}>
+                            {stampLabel}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="font-mono text-[10px] text-paper-400 bg-ink-950 px-2 py-0.5 rounded border border-ruling">
+                            {row.storage_type}
+                          </span>
+                        </td>
+                        <td>
+                          <Link 
+                            href={`/datasets/${row.id}`}
+                            className="btn-secondary text-[11px] py-1 px-2.5"
+                            title="Inspect Case Dossier"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-evidence-amber" />
+                            <span>Inspect</span>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
           </div>
         </div>
 
-        {/* AI Insights Card */}
-        <div className="glass-card p-6 space-y-4">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-violet-400" />
-            <span>AI Detective Insights</span>
-          </h3>
-          <div className="space-y-4">
-            {insights.map((insight, i) => (
-              <div 
-                key={i} 
-                className={`p-4 rounded-lg text-xs leading-relaxed border ${
-                  insight.type === 'warning'
-                    ? 'bg-amber-500/5 text-amber-300 border-amber-500/10'
-                    : insight.type === 'success'
-                    ? 'bg-emerald-500/5 text-emerald-300 border-emerald-500/10'
-                    : 'bg-indigo-500/5 text-indigo-300 border-indigo-500/10'
-                }`}
-              >
-                <div className="flex gap-2.5 items-start">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{insight.text}</span>
-                </div>
+        {/* Forensic Intelligence Bulletins */}
+        <div className="ledger-card space-y-4">
+          <div className="ledger-header flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-evidence-crimson" />
+              <span>Forensic Advisories</span>
+            </span>
+            <span className="stamp-tag stamp-tag-amber text-[9px]">LIVE INTEL</span>
+          </div>
+
+          <div className="p-4 space-y-3 font-mono text-xs">
+            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] text-evidence-amber font-bold">
+                <span>[ADVISORY #01] STATISTICAL QUARANTINE</span>
+                <span>IQR LEVEL 1.5</span>
               </div>
-            ))}
+              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
+                Outliers are flagged when numeric distributions exceed 1.5× Interquartile Range thresholds. Review anomaly registers inside each dossier.
+              </p>
+            </div>
+
+            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] text-evidence-cyan font-bold">
+                <span>[ADVISORY #02] CODE STUDIO READY</span>
+                <span>SQL / PYSPARK</span>
+              </div>
+              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
+                Automated pipeline scripts can be exported directly from the Code Studio tab once schema integrity audits are concluded.
+              </p>
+            </div>
+
+            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] text-evidence-emerald font-bold">
+                <span>[ADVISORY #03] CHAIN OF CUSTODY</span>
+                <span>SHA-256</span>
+              </div>
+              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
+                Uploaded files are stored immutably. Local or AWS S3 lakehouse partitions maintain full audit traceability.
+              </p>
+            </div>
           </div>
         </div>
       </section>

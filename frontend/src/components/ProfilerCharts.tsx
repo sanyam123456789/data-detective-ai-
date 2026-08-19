@@ -15,16 +15,24 @@ import {
   CartesianGrid
 } from 'recharts';
 
-const COLORS = ['#8b5cf6', '#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6'];
+const FORENSIC_COLORS = ['#38BDF8', '#E59500', '#D9383A', '#10B981', '#94A3B8', '#64748B', '#F59E0B'];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-gray-950/95 border border-white/10 backdrop-blur-md p-3 rounded-lg text-xs space-y-1 shadow-xl">
-        <p className="font-bold text-white truncate max-w-[180px]">{label}</p>
+      <div className="bg-ink-950 border border-ruling p-2.5 rounded shadow-lg text-xs font-mono space-y-1">
+        <p className="font-bold text-paper-100 truncate max-w-[200px] border-b border-ruling pb-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-evidence-amber" />
+          <span>{label}</span>
+        </p>
         {payload.map((p: any) => (
-          <p key={p.name} style={{ color: p.color || p.fill }} className="font-medium">
-            <span className="capitalize">{p.name}</span>: {typeof p.value === 'number' && (p.name.includes('percentage') || p.name.includes('Completeness')) ? `${p.value.toFixed(1)}%` : p.value}
+          <p key={p.name} className="text-paper-300 flex items-center justify-between gap-3 text-[11px]">
+            <span className="capitalize">{p.name}:</span>
+            <span className="font-bold text-paper-100">
+              {typeof p.value === 'number' && (p.name.includes('percentage') || p.name.includes('Ratio') || p.name.includes('Completeness')) 
+                ? `${p.value.toFixed(1)}%` 
+                : p.value.toLocaleString()}
+            </span>
           </p>
         ))}
       </div>
@@ -33,29 +41,38 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// 1. Missing Values Bar Chart
+// 1. Missing Values Bar Chart (Forensic Anomaly Bar)
 export function MissingValuesChart({ columnsData }: { columnsData: Record<string, any> }) {
   const data = Object.entries(columnsData).map(([colName, stats]) => ({
     name: colName,
-    'Null Count': stats.null_count || 0,
+    'Null Cells': stats.null_count || 0,
   }));
 
   return (
-    <div className="h-[280px] w-full">
+    <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 15, right: 10, left: -25, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-          <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} />
-          <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} />
+        <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <XAxis 
+            dataKey="name" 
+            stroke="#64748B" 
+            fontSize={10} 
+            fontFamily="monospace" 
+            tickLine={false} 
+            angle={-30} 
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Null Count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Null Cells" fill="#D9383A" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-// 2. Data Type Distribution Pie Chart
+// 2. Data Type Distribution Pie Chart (Forensic Schema Distribution)
 export function DataTypeDistributionChart({ detectedTypes }: { detectedTypes: Record<string, string> }) {
   const counts: Record<string, number> = {};
   Object.values(detectedTypes).forEach((t) => {
@@ -68,27 +85,29 @@ export function DataTypeDistributionChart({ detectedTypes }: { detectedTypes: Re
   }));
 
   return (
-    <div className="h-[280px] w-full flex items-center justify-center">
+    <div className="h-[260px] w-full flex items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={data}
             cx="50%"
             cy="45%"
-            innerRadius={50}
-            outerRadius={75}
-            paddingAngle={3}
+            innerRadius={48}
+            outerRadius={72}
+            paddingAngle={2}
             dataKey="value"
+            stroke="#13171F"
+            strokeWidth={2}
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              <Cell key={`cell-${index}`} fill={FORENSIC_COLORS[index % FORENSIC_COLORS.length]} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             verticalAlign="bottom"
             height={36}
-            formatter={(value) => <span className="text-[11px] text-gray-400 capitalize font-medium">{value}</span>} 
+            formatter={(value) => <span className="text-[11px] font-mono text-paper-300 capitalize">{value}</span>} 
           />
         </PieChart>
       </ResponsiveContainer>
@@ -102,19 +121,28 @@ export function ColumnCompletenessChart({ columnsData }: { columnsData: Record<s
     const completeness = 100 - (stats.missing_percentage || 0);
     return {
       name: colName,
-      'Completeness Ratio': completeness,
+      'Completeness': completeness,
     };
   });
 
   return (
-    <div className="h-[280px] w-full">
+    <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 15, right: 10, left: -25, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-          <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} />
-          <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} domain={[0, 100]} />
+        <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <XAxis 
+            dataKey="name" 
+            stroke="#64748B" 
+            fontSize={10} 
+            fontFamily="monospace" 
+            tickLine={false} 
+            angle={-30} 
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} domain={[0, 100]} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Completeness Ratio" fill="#10b981" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Completeness" fill="#38BDF8" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -129,14 +157,23 @@ export function CategoryDistributionChart({ categories }: { categories: Array<{ 
   }));
 
   return (
-    <div className="h-[280px] w-full">
+    <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 15, right: 10, left: -25, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-          <XAxis dataKey="name" stroke="#9ca3af" fontSize={10} tickLine={false} />
-          <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} />
+        <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <XAxis 
+            dataKey="name" 
+            stroke="#64748B" 
+            fontSize={10} 
+            fontFamily="monospace" 
+            tickLine={false} 
+            angle={-30} 
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Occurrences" fill="#6366f1" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Occurrences" fill="#E59500" radius={[2, 2, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

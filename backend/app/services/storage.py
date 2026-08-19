@@ -1,3 +1,7 @@
+"""
+Storage Service — Phase 2D update.
+Uses boto3 credential chain (AWS_PROFILE or IAM role) — no hardcoded keys.
+"""
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -49,13 +53,14 @@ class LocalStorageService(StorageService):
 class S3StorageService(StorageService):
     """
     AWS S3 implementation of StorageService.
+    Uses boto3 credential chain (AWS_PROFILE, environment, or IAM role).
+    NEVER requires or accepts hardcoded AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
     """
-    def __init__(self, bucket_name: str, region_name: str, access_key: str = None, secret_key: str = None) -> None:
-        s3_kwargs = {"region_name": region_name}
-        if access_key and secret_key:
-            s3_kwargs["aws_access_key_id"] = access_key
-            s3_kwargs["aws_secret_access_key"] = secret_key
-        self.s3_client = boto3.client("s3", **s3_kwargs)
+    def __init__(self, bucket_name: str, region_name: str) -> None:
+        # Use the data_engineering aws_client for consistent credential resolution
+        from app.data_engineering.aws_client import get_boto3_session
+        session = get_boto3_session()
+        self.s3_client = session.client("s3", region_name=region_name)
         self.bucket_name = bucket_name
         self.region_name = region_name
 
@@ -77,9 +82,10 @@ class S3StorageService(StorageService):
                 "size": len(file_content)
             }
         except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
             return {
                 "success": False,
-                "error": str(e),
+                "error": f"S3 error [{error_code}]: check IAM permissions",
                 "filename": filename
             }
 
@@ -90,12 +96,10 @@ def get_storage_service() -> StorageService:
     provider = settings.STORAGE_PROVIDER.lower()
     if provider == "s3":
         if not settings.S3_BUCKET_NAME:
-            raise ValueError("S3_BUCKET_NAME is not configured but provider is S3")
+            raise ValueError("S3_BUCKET_NAME is not configured but STORAGE_PROVIDER=s3")
         return S3StorageService(
             bucket_name=settings.S3_BUCKET_NAME,
             region_name=settings.AWS_REGION,
-            access_key=settings.AWS_ACCESS_KEY_ID,
-            secret_key=settings.AWS_SECRET_ACCESS_KEY
         )
     else:
         return LocalStorageService(local_dir=settings.LOCAL_STORAGE_DIR)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   FileSpreadsheet, 
@@ -13,14 +13,13 @@ import {
   Grid,
   Sparkles,
   MessageSquare,
-  CheckCircle,
+  CheckCircle2,
   AlertCircle,
   ChevronDown,
   ChevronRight,
   Send,
   RefreshCw,
   Loader2,
-  Lightbulb,
   BarChart3,
   Wrench,
   Brain,
@@ -34,6 +33,19 @@ import {
   Check,
   Download,
   FileCode,
+  Cloud,
+  CloudOff,
+  Database,
+  Table2,
+  Play,
+  Clock,
+  HardDrive,
+  Zap,
+  ServerCrash,
+  SquareArrowRight,
+  FolderOpen,
+  FileSearch,
+  CheckCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -127,6 +139,33 @@ interface AIChatResponse {
   context_summary: string;
 }
 
+// ─── Phase 2D: Pipeline + Athena Types ──────────────────────────────────────
+
+interface PipelineStatusResponse {
+  dataset_id: string;
+  pipeline_status: string;
+  storage_provider: string;
+  raw_s3_key: string | null;
+  curated_s3_key: string | null;
+  catalog_database: string | null;
+  catalog_table: string | null;
+  pipeline_error: string | null;
+  processed_at: string | null;
+  aws_configured: boolean;
+  athena_query_table: string | null;
+}
+
+interface AthenaQueryResponse {
+  query_execution_id: string;
+  status: string;
+  columns: string[];
+  rows: (string | null)[][];
+  row_count: number;
+  execution_time_ms: number;
+  data_scanned_bytes: number;
+  data_scanned_mb: number;
+}
+
 // ─── Phase 2C Response Types ──────────────────────────────────────────────────
 
 interface SQLGenerationResponse {
@@ -149,16 +188,16 @@ interface PySparkGenerationResponse {
   dataset_path_variable: string;
 }
 
-// ─── Helper components ────────────────────────────────────────────────────────
+// ─── Forensic Helper Components ───────────────────────────────────────────────
 
 function AIUnavailableBanner() {
   return (
-    <div className="glass-card p-5 flex items-start gap-4 border-amber-500/20 bg-amber-500/5">
-      <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-      <div>
-        <p className="text-sm font-semibold text-amber-300">AI insights are temporarily unavailable</p>
-        <p className="text-xs text-gray-400 mt-1">
-          Your dataset profile and all charts are still available. Try generating AI insights again later.
+    <div className="ledger-card p-4 flex items-start gap-3 border-evidence-amber/30 bg-ink-950">
+      <WifiOff className="w-4 h-4 text-evidence-amber shrink-0 mt-0.5" />
+      <div className="font-mono text-xs">
+        <p className="font-bold text-evidence-amber uppercase">AI Forensic Intelligence Temporarily Offline</p>
+        <p className="text-paper-400 mt-0.5 font-body text-xs">
+          Statistical profile matrices and schema ledgers remain active. Re-attempt AI forensic synthesis shortly.
         </p>
       </div>
     </div>
@@ -167,44 +206,41 @@ function AIUnavailableBanner() {
 
 function AILoadingSkeleton({ label }: { label: string }) {
   return (
-    <div className="glass-card p-6 space-y-4">
+    <div className="ledger-card p-6 space-y-4 font-mono">
       <div className="flex items-center gap-3">
-        <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center">
-          <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-        </div>
-        <span className="text-sm text-gray-400 font-medium animate-pulse">{label}</span>
+        <Loader2 className="w-4 h-4 text-evidence-amber animate-spin" />
+        <span className="text-xs text-paper-300 font-bold uppercase tracking-wider">{label}</span>
       </div>
-      <div className="space-y-3">
-        <div className="h-3 bg-white/5 rounded-full animate-pulse w-3/4" />
-        <div className="h-3 bg-white/5 rounded-full animate-pulse w-full" />
-        <div className="h-3 bg-white/5 rounded-full animate-pulse w-5/6" />
-        <div className="h-3 bg-white/5 rounded-full animate-pulse w-2/3" />
+      <div className="space-y-2">
+        <div className="h-2 bg-ink-800 rounded w-3/4 animate-pulse border border-ruling" />
+        <div className="h-2 bg-ink-800 rounded w-full animate-pulse border border-ruling" />
+        <div className="h-2 bg-ink-800 rounded w-5/6 animate-pulse border border-ruling" />
       </div>
     </div>
   );
 }
 
 function ConfidenceBadge({ level }: { level: 'low' | 'medium' | 'high' }) {
-  const colors = {
-    high: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    low: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  const styles = {
+    high: 'stamp-tag-emerald',
+    medium: 'stamp-tag-amber',
+    low: 'stamp-tag-muted',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize ${colors[level]}`}>
+    <span className={`stamp-tag ${styles[level]} text-[9px]`}>
       {level} confidence
     </span>
   );
 }
 
 function PriorityBadge({ level }: { level: 'low' | 'medium' | 'high' }) {
-  const colors = {
-    high: 'bg-red-500/10 text-red-400 border-red-500/20',
-    medium: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  const styles = {
+    high: 'stamp-tag-crimson',
+    medium: 'stamp-tag-amber',
+    low: 'stamp-tag-emerald',
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold border uppercase tracking-wider ${colors[level]}`}>
+    <span className={`stamp-tag ${styles[level]} text-[9px]`}>
       {level} priority
     </span>
   );
@@ -213,7 +249,7 @@ function PriorityBadge({ level }: { level: 'low' | 'medium' | 'high' }) {
 function GenerateButton({ 
   onClick, 
   loading, 
-  label = 'Generate AI Insights',
+  label = 'Interrogate Dataset',
   isRefresh = false 
 }: { 
   onClick: () => void; 
@@ -222,26 +258,24 @@ function GenerateButton({
   isRefresh?: boolean;
 }) {
   return (
-    <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+    <button
       onClick={onClick}
       disabled={loading}
-      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/40 text-white transition-all shadow-lg shadow-violet-600/20 disabled:cursor-not-allowed"
+      className="btn-primary text-xs"
     >
       {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
       ) : isRefresh ? (
-        <RefreshCw className="w-4 h-4" />
+        <RefreshCw className="w-3.5 h-3.5" />
       ) : (
-        <Sparkles className="w-4 h-4" />
+        <Sparkles className="w-3.5 h-3.5" />
       )}
-      <span>{loading ? 'Analyzing...' : label}</span>
-    </motion.button>
+      <span>{loading ? 'Synthesizing Evidence...' : label}</span>
+    </button>
   );
 }
 
-// ─── AI Tab Sub-sections ──────────────────────────────────────────────────────
+// ─── AI Overview Section ──────────────────────────────────────────────────────
 
 function AIOverviewSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
   const [triggered, setTriggered] = useState(false);
@@ -270,24 +304,24 @@ function AIOverviewSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: s
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-1">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Brain className="w-4 h-4 text-violet-400" />
-            AI Executive Summary
+      <div className="flex items-start justify-between gap-4 flex-wrap border-b border-ruling pb-3">
+        <div>
+          <h3 className="font-mono text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Forensic Executive Summary</span>
           </h3>
-          <p className="text-xs text-gray-400">
-            AI-generated overview of your dataset based on profiling results.
+          <p className="text-xs font-mono text-paper-400 mt-0.5">
+            HIGH-LEVEL AUDIT PROFILE & ANOMALY ASSESSMENT
           </p>
         </div>
         <div className="flex items-center gap-2">
           {data && (
             <button
               onClick={() => handleGenerate(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+              className="btn-secondary text-xs"
             >
               <RefreshCw className="w-3 h-3" />
-              Regenerate
+              <span>Regenerate</span>
             </button>
           )}
           {!triggered && (
@@ -297,80 +331,53 @@ function AIOverviewSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: s
       </div>
 
       {!triggered && (
-        <div className="glass-card p-8 text-center space-y-3 border-dashed">
-          <Sparkles className="w-8 h-8 text-violet-400/50 mx-auto" />
-          <p className="text-sm text-gray-400">Click "Generate AI Insights" to analyze your dataset</p>
-          <p className="text-xs text-gray-500">Results are cached — subsequent loads are instant</p>
+        <div className="ledger-card p-8 text-center space-y-3 font-mono">
+          <FileSearch className="w-8 h-8 text-evidence-amber mx-auto" />
+          <p className="text-xs font-bold text-paper-100 uppercase">Initialize Forensic Synthesis</p>
+          <p className="text-[11px] text-paper-400 font-body max-w-sm mx-auto">
+            Click to command AI interrogation across statistical distributions, null ratios, and categorical entropy.
+          </p>
         </div>
       )}
 
-      {isLoading && <AILoadingSkeleton label="Analyzing dataset characteristics..." />}
-
+      {isLoading && <AILoadingSkeleton label="Synthesizing forensic executive summary..." />}
       {error && <AIUnavailableBanner />}
 
       {data && !isLoading && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-5"
-        >
-          {/* Overview */}
-          <div className="glass-card p-5 space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400">Overview</span>
-            <p className="text-sm text-gray-200 leading-relaxed">{data.overview}</p>
+        <div className="space-y-4 font-mono">
+          {/* Overview Container */}
+          <div className="ledger-card p-4 space-y-2">
+            <div className="flex items-center justify-between border-b border-ruling pb-1.5">
+              <span className="text-[10px] font-bold uppercase text-evidence-amber">Primary Diagnostic Overview</span>
+              <span className="stamp-tag stamp-tag-cyan text-[9px]">SYNTHESIZED</span>
+            </div>
+            <p className="text-xs text-paper-200 font-body leading-relaxed">{data.overview}</p>
           </div>
 
-          {/* 3-column grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Characteristics */}
-            <div className="glass-card p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold text-gray-300">Characteristics</span>
-              </div>
-              <ul className="space-y-2">
-                {data.characteristics.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                    <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+          {/* Characteristics & Patterns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="ledger-card p-4 space-y-2">
+              <span className="text-[10px] font-bold uppercase text-paper-400 block border-b border-ruling pb-1">
+                Structural Characteristics
+              </span>
+              <ul className="space-y-1.5 text-xs text-paper-300 font-body">
+                {data.characteristics.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-evidence-cyan font-mono">•</span>
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* Major Issues */}
-            <div className="glass-card p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-gray-300">Major Issues</span>
-              </div>
-              <ul className="space-y-2">
-                {data.major_issues.length === 0 ? (
-                  <li className="text-xs text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle className="w-3 h-3" />
-                    No major issues detected
-                  </li>
-                ) : (
-                  data.major_issues.map((item, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                      <span className="text-amber-400 mt-0.5 shrink-0">⚠</span>
-                      <span>{item}</span>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-
-            {/* Next Steps */}
-            <div className="glass-card p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold text-gray-300">Next Steps</span>
-              </div>
-              <ul className="space-y-2">
-                {data.next_steps.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                    <span className="text-emerald-400 font-bold mt-0.5 shrink-0">{i + 1}.</span>
+            <div className="ledger-card p-4 space-y-2">
+              <span className="text-[10px] font-bold uppercase text-paper-400 block border-b border-ruling pb-1">
+                Detected Data Patterns
+              </span>
+              <ul className="space-y-1.5 text-xs text-paper-300 font-body">
+                {data.patterns.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-evidence-emerald font-mono">•</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -378,27 +385,30 @@ function AIOverviewSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: s
             </div>
           </div>
 
-          {/* Patterns */}
-          {data.patterns.length > 0 && (
-            <div className="glass-card p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-yellow-400" />
-                <span className="text-xs font-bold text-gray-300">Notable Patterns</span>
+          {/* Major Issues Callout */}
+          {data.major_issues && data.major_issues.length > 0 && (
+            <div className="ledger-card p-4 border-evidence-crimson/40 bg-ink-950 space-y-2">
+              <div className="flex items-center gap-2 text-evidence-crimson">
+                <ShieldAlert className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase">Major Forensic Anomalies Intercepted</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {data.patterns.map((p, i) => (
-                  <span key={i} className="px-3 py-1.5 rounded-lg text-xs text-gray-300 bg-white/5 border border-white/5">
-                    {p}
-                  </span>
+              <ul className="space-y-1 text-xs text-paper-300 font-body">
+                {data.major_issues.map((issue, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-evidence-crimson font-mono">&gt;</span>
+                    <span>{issue}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
     </div>
   );
 }
+
+// ─── AI Quality Section ───────────────────────────────────────────────────────
 
 function AIQualitySection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
   const [triggered, setTriggered] = useState(false);
@@ -420,122 +430,111 @@ function AIQualitySection({ datasetId, apiUrl }: { datasetId: string; apiUrl: st
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-1">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400" />
-            Data Quality Insights
+      <div className="flex items-start justify-between gap-4 flex-wrap border-b border-ruling pb-3">
+        <div>
+          <h3 className="font-mono text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Quality Defects & Anomaly Register</span>
           </h3>
-          <p className="text-xs text-gray-400">AI-identified quality issues with explanations and recommendations.</p>
+          <p className="text-xs font-mono text-paper-400 mt-0.5">
+            ROOT-CAUSE EXPLANATIONS AND REMEDIATION ADVICE
+          </p>
         </div>
         {!triggered ? (
-          <GenerateButton onClick={() => setTriggered(true)} loading={false} />
+          <GenerateButton onClick={() => setTriggered(true)} loading={false} label="Audit Quality Defects" />
         ) : (
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+            className="btn-secondary text-xs"
           >
-            <RefreshCw className="w-3 h-3" /> Regenerate
+            <RefreshCw className="w-3 h-3" /> 
+            <span>Re-Audit</span>
           </button>
         )}
       </div>
 
       {!triggered && (
-        <div className="glass-card p-8 text-center space-y-2 border-dashed">
-          <AlertCircle className="w-8 h-8 text-amber-400/40 mx-auto" />
-          <p className="text-sm text-gray-400">Generate AI quality analysis to identify issues</p>
+        <div className="ledger-card p-8 text-center space-y-2 font-mono">
+          <AlertCircle className="w-8 h-8 text-evidence-amber/60 mx-auto" />
+          <p className="text-xs font-bold text-paper-100 uppercase">Run Forensic Quality Audit</p>
+          <p className="text-[11px] text-paper-400 font-body max-w-sm mx-auto">
+            Interrogate table schema for null cascades, cardinality collapse, and date parse exceptions.
+          </p>
         </div>
       )}
 
-      {isLoading && <AILoadingSkeleton label="Analyzing data quality issues..." />}
+      {isLoading && <AILoadingSkeleton label="Auditing dataset quality defects..." />}
       {error && <AIUnavailableBanner />}
 
       {data && !isLoading && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <div className="glass-card p-4 border-violet-500/10">
-            <p className="text-sm text-gray-300 leading-relaxed">{data.summary}</p>
+        <div className="space-y-4 font-mono">
+          <div className="ledger-card p-3.5 bg-ink-950 border-ruling">
+            <p className="text-xs text-paper-200 font-body leading-relaxed">{data.summary}</p>
           </div>
           
           {data.insights.length === 0 ? (
-            <div className="text-center py-8 text-sm text-emerald-400 flex flex-col items-center gap-2">
-              <CheckCircle className="w-8 h-8" />
-              No significant data quality issues found!
+            <div className="p-8 text-center text-xs text-evidence-emerald flex flex-col items-center gap-2 ledger-card">
+              <CheckCheck className="w-8 h-8" />
+              <span className="font-bold uppercase">No Critical Quality Defects Intercepted</span>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.insights.map((insight, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="glass-card overflow-hidden"
-                >
+                <div key={i} className="ledger-card overflow-hidden">
                   <button
                     onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
-                    className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-white/[0.02] transition-colors"
+                    className="w-full p-3.5 flex items-center justify-between gap-3 text-left hover:bg-ink-850 transition-colors"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-                        <AlertCircle className="w-4 h-4 text-amber-400" />
-                      </div>
+                      <span className="text-[10px] font-mono font-bold text-evidence-amber">
+                        #{String(i + 1).padStart(2, '0')}
+                      </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{insight.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-xs font-bold text-paper-100 truncate">{insight.title}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <ConfidenceBadge level={insight.confidence} />
                           {insight.affected_columns.length > 0 && (
-                            <span className="text-[9px] text-gray-500">
-                              Affects: {insight.affected_columns.slice(0, 3).join(', ')}
-                              {insight.affected_columns.length > 3 && ` +${insight.affected_columns.length - 3}`}
+                            <span className="text-[10px] text-paper-400">
+                              AFFECTS: {insight.affected_columns.join(', ')}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
                     {expandedIndex === i ? (
-                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                      <ChevronDown className="w-4 h-4 text-paper-400 shrink-0" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-paper-400 shrink-0" />
                     )}
                   </button>
 
-                  <AnimatePresence>
-                    {expandedIndex === i && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-4 pb-4 pt-0 border-t border-white/5 space-y-3 mt-0">
-                          <div className="pt-3 space-y-3">
-                            <div>
-                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Issue</span>
-                              <p className="text-xs text-gray-300 leading-relaxed">{insight.issue}</p>
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Why It Matters</span>
-                              <p className="text-xs text-gray-300 leading-relaxed">{insight.why_it_matters}</p>
-                            </div>
-                            <div className="bg-violet-500/5 border border-violet-500/15 rounded-lg p-3">
-                              <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">Recommendation</span>
-                              <p className="text-xs text-gray-300 leading-relaxed">{insight.recommendation}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
+                  {expandedIndex === i && (
+                    <div className="px-4 pb-4 pt-2 border-t border-ruling space-y-3 bg-ink-950 font-mono text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-paper-400 uppercase tracking-wider block mb-1">Defect Analysis</span>
+                        <p className="text-xs text-paper-200 font-body leading-relaxed">{insight.issue}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-paper-400 uppercase tracking-wider block mb-1">Downstream Impact</span>
+                        <p className="text-xs text-paper-200 font-body leading-relaxed">{insight.why_it_matters}</p>
+                      </div>
+                      <div className="p-3 bg-ink-900 border border-ruling rounded">
+                        <span className="text-[10px] font-bold text-evidence-amber uppercase tracking-wider block mb-1">Prescribed Remediation</span>
+                        <p className="text-xs text-paper-200 font-body leading-relaxed">{insight.recommendation}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
-        </motion.div>
+        </div>
       )}
     </div>
   );
 }
+
+// ─── AI Recommendations Section ───────────────────────────────────────────────
 
 function AIRecommendationsSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
   const [triggered, setTriggered] = useState(false);
@@ -561,118 +560,84 @@ function AIRecommendationsSection({ datasetId, apiUrl }: { datasetId: string; ap
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-1">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-emerald-400" />
-            Cleaning Recommendations
+      <div className="flex items-start justify-between gap-4 flex-wrap border-b border-ruling pb-3">
+        <div>
+          <h3 className="font-mono text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <Wrench className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Remediation Action Playbook</span>
           </h3>
-          <p className="text-xs text-gray-400">Prioritized actions to improve your dataset quality.</p>
+          <p className="text-xs font-mono text-paper-400 mt-0.5">
+            PRIORITIZED DATA REPAIR & ENGINEERING STEPS
+          </p>
         </div>
         {!triggered ? (
-          <GenerateButton onClick={() => setTriggered(true)} loading={false} />
+          <GenerateButton onClick={() => setTriggered(true)} loading={false} label="Generate Playbook" />
         ) : (
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+            className="btn-secondary text-xs"
           >
-            <RefreshCw className="w-3 h-3" /> Regenerate
+            <RefreshCw className="w-3 h-3" />
+            <span>Refresh</span>
           </button>
         )}
       </div>
 
       {!triggered && (
-        <div className="glass-card p-8 text-center space-y-2 border-dashed">
-          <Wrench className="w-8 h-8 text-emerald-400/40 mx-auto" />
-          <p className="text-sm text-gray-400">Generate cleaning recommendations based on profiling</p>
+        <div className="ledger-card p-8 text-center space-y-2 font-mono">
+          <Wrench className="w-8 h-8 text-evidence-amber/60 mx-auto" />
+          <p className="text-xs font-bold text-paper-100 uppercase">Compile Remediation Playbook</p>
+          <p className="text-[11px] text-paper-400 font-body max-w-sm mx-auto">
+            Calculates high, medium, and low-priority fixes for production pipeline readiness.
+          </p>
         </div>
       )}
 
-      {isLoading && <AILoadingSkeleton label="Generating cleaning recommendations..." />}
+      {isLoading && <AILoadingSkeleton label="Formulating remediation playbook..." />}
       {error && <AIUnavailableBanner />}
 
       {data && !isLoading && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {data.high_priority_count > 0 && (
-            <div className="glass-card p-3 flex items-center gap-3 border-red-500/20 bg-red-500/5">
-              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-              <p className="text-xs text-gray-300">
-                <span className="font-bold text-red-400">{data.high_priority_count} high-priority</span> recommendation{data.high_priority_count !== 1 ? 's' : ''} require immediate attention.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {sortedRecs.map((rec, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="glass-card p-5 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                      rec.priority === 'high' ? 'bg-red-500/10 border border-red-500/20' :
-                      rec.priority === 'medium' ? 'bg-amber-500/10 border border-amber-500/20' :
-                      'bg-emerald-500/10 border border-emerald-500/20'
-                    }`}>
-                      <CheckCircle className={`w-4 h-4 ${
-                        rec.priority === 'high' ? 'text-red-400' :
-                        rec.priority === 'medium' ? 'text-amber-400' :
-                        'text-emerald-400'
-                      }`} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{rec.title}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <PriorityBadge level={rec.priority} />
-                        <ConfidenceBadge level={rec.confidence} />
-                      </div>
-                    </div>
-                  </div>
+        <div className="space-y-3 font-mono">
+          {sortedRecs.map((rec, i) => (
+            <div key={i} className="ledger-card p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2 border-b border-ruling pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-evidence-amber">#{String(i + 1).padStart(2, '0')}</span>
+                  <h4 className="text-xs font-bold text-paper-100">{rec.title}</h4>
                 </div>
-
-                <p className="text-xs text-gray-300 leading-relaxed">{rec.description}</p>
-
-                <div className="flex items-start gap-2 bg-white/[0.02] rounded-lg p-3 border border-white/5">
-                  <Info className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-gray-400 leading-relaxed">{rec.reason}</p>
+                <div className="flex items-center gap-2">
+                  <PriorityBadge level={rec.priority} />
+                  <ConfidenceBadge level={rec.confidence} />
                 </div>
-
+              </div>
+              <p className="text-xs text-paper-200 font-body leading-relaxed">{rec.description}</p>
+              <div className="pt-1 text-[11px] text-paper-400 flex items-center justify-between">
+                <span>RATIONALE: {rec.reason}</span>
                 {rec.affected_columns.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Affects:</span>
-                    {rec.affected_columns.map(col => (
-                      <span key={col} className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/10 text-violet-400 border border-violet-500/15">
-                        {col}
-                      </span>
-                    ))}
-                  </div>
+                  <span className="text-evidence-cyan">
+                    COLS: {rec.affected_columns.join(', ')}
+                  </span>
                 )}
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
+// ─── AI Column Explainer Section ──────────────────────────────────────────────
+
 function AIColumnExplainerSection({ datasetId, apiUrl, columnNames }: { datasetId: string; apiUrl: string; columnNames: string[] }) {
-  const [selectedColumn, setSelectedColumn] = useState(columnNames[0] || '');
+  const [selectedColumn, setSelectedColumn] = useState<string>(columnNames[0] || '');
   const [triggered, setTriggered] = useState(false);
   const [fetchKey, setFetchKey] = useState(0);
 
   const { data, isLoading, error } = useQuery<AIColumnExplanation>({
-    queryKey: ['ai-column', datasetId, selectedColumn, fetchKey],
+    queryKey: ['ai-column-explain', datasetId, selectedColumn, fetchKey],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/ai/column${fetchKey > 0 ? '?force_refresh=true' : ''}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ column_name: selectedColumn }),
-      });
+      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/ai/columns/${selectedColumn}/explain`, { method: 'POST' });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || 'Column explanation failed');
@@ -685,136 +650,100 @@ function AIColumnExplainerSection({ datasetId, apiUrl, columnNames }: { datasetI
 
   const handleExplain = () => {
     setTriggered(true);
-  };
-
-  const handleColumnChange = (col: string) => {
-    setSelectedColumn(col);
-    setTriggered(false);
+    setFetchKey(k => k + 1);
   };
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-blue-400" />
-          Column Explainer
-        </h3>
-        <p className="text-xs text-gray-400">Get an AI-powered explanation of any column in your dataset.</p>
-      </div>
+      <div className="flex items-center justify-between gap-4 flex-wrap border-b border-ruling pb-3">
+        <div>
+          <h3 className="font-mono text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <BarChart3 className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Column Interrogation Ledger</span>
+          </h3>
+          <p className="text-xs font-mono text-paper-400 mt-0.5">
+            ISOLATED STATISTICAL PROFILE & SEMANTIC CLASSIFICATION
+          </p>
+        </div>
 
-      {/* Column selector + button */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 font-mono">
           <select
             value={selectedColumn}
-            onChange={(e) => handleColumnChange(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 focus:bg-violet-500/5 transition-all appearance-none cursor-pointer"
+            onChange={(e) => setSelectedColumn(e.target.value)}
+            className="bg-ink-950 border border-ruling rounded px-3 py-1.5 text-xs text-paper-100 focus:border-evidence-amber"
           >
             {columnNames.map(col => (
-              <option key={col} value={col} className="bg-gray-900 text-white">{col}</option>
+              <option key={col} value={col}>{col}</option>
             ))}
           </select>
-        </div>
-        <GenerateButton 
-          onClick={handleExplain} 
-          loading={isLoading}
-          label={triggered ? 'Explain Column' : 'Explain Column'}
-        />
-        {triggered && data && (
           <button
-            onClick={() => { setFetchKey(k => k + 1); }}
-            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium text-gray-400 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+            onClick={handleExplain}
+            disabled={isLoading}
+            className="btn-primary text-xs"
           >
-            <RefreshCw className="w-3 h-3" />
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Interrogate</span>}
           </button>
-        )}
+        </div>
       </div>
 
-      {isLoading && <AILoadingSkeleton label={`Analyzing column "${selectedColumn}"...`} />}
+      {isLoading && <AILoadingSkeleton label={`Interrogating column "${selectedColumn}"...`} />}
       {error && <AIUnavailableBanner />}
 
       {!triggered && !isLoading && (
-        <div className="glass-card p-8 text-center space-y-2 border-dashed">
-          <BarChart3 className="w-8 h-8 text-blue-400/40 mx-auto" />
-          <p className="text-sm text-gray-400">Select a column and click "Explain Column"</p>
+        <div className="ledger-card p-8 text-center space-y-2 font-mono">
+          <Grid className="w-8 h-8 text-evidence-amber/60 mx-auto" />
+          <p className="text-xs font-bold text-paper-100 uppercase">Select Target Column</p>
+          <p className="text-[11px] text-paper-400 font-body max-w-sm mx-auto">
+            Choose any schema field to extract its inferred business semantics, missingness profile, and potential data risks.
+          </p>
         </div>
       )}
 
       {data && !isLoading && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          <div className="glass-card p-5 space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-white/5">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                <Grid className="w-5 h-5 text-blue-400" />
+        <div className="ledger-card p-5 space-y-4 font-mono">
+          <div className="flex items-center justify-between pb-3 border-b border-ruling">
+            <div>
+              <p className="text-sm font-bold text-paper-50">{data.column_name}</p>
+              <p className="text-[11px] text-paper-400 mt-0.5">DATA TYPE: {data.data_type}</p>
+            </div>
+            <span className="stamp-tag stamp-tag-amber text-[9px]">COLUMN PROFILE</span>
+          </div>
+
+          <div className="space-y-4">
+            <div className="p-3 bg-ink-950 rounded border border-ruling space-y-1">
+              <span className="text-[10px] font-bold text-evidence-amber uppercase block">Inferred Semantic Meaning</span>
+              <p className="text-xs text-paper-200 font-body">{data.likely_represents}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-3 bg-ink-950 rounded border border-ruling space-y-1">
+                <span className="text-[10px] font-bold text-paper-400 uppercase block">Null Distribution</span>
+                <p className="text-xs text-paper-300 font-body">{data.missing_info}</p>
               </div>
-              <div>
-                <p className="text-base font-bold text-white">{data.column_name}</p>
-                <p className="text-xs text-gray-400">{data.data_type}</p>
+              <div className="p-3 bg-ink-950 rounded border border-ruling space-y-1">
+                <span className="text-[10px] font-bold text-paper-400 uppercase block">Cardinality & Uniqueness</span>
+                <p className="text-xs text-paper-300 font-body">{data.cardinality_info}</p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">Likely Represents</span>
-                <p className="text-sm text-gray-200 leading-relaxed">{data.likely_represents}</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Missing Values</span>
-                  <p className="text-xs text-gray-300 leading-relaxed">{data.missing_info}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Cardinality</span>
-                  <p className="text-xs text-gray-300 leading-relaxed">{data.cardinality_info}</p>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Key Statistics</span>
-                <p className="text-xs text-gray-300 leading-relaxed">{data.statistics}</p>
-              </div>
-
-              {data.quality_problems.length > 0 && (
-                <div>
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-2">Quality Problems</span>
-                  <ul className="space-y-1.5">
-                    {data.quality_problems.map((p, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-400">
-                        <span className="text-amber-400 shrink-0 mt-0.5">⚠</span>
-                        <span>{p}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {data.analysis_ideas.length > 0 && (
-                <div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-2">Analysis Ideas</span>
-                  <div className="flex flex-wrap gap-2">
-                    {data.analysis_ideas.map((idea, i) => (
-                      <span key={i} className="px-3 py-1.5 rounded-lg text-xs text-gray-300 bg-emerald-500/5 border border-emerald-500/15">
-                        💡 {idea}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="p-3 bg-ink-950 rounded border border-ruling space-y-1">
+              <span className="text-[10px] font-bold text-paper-400 uppercase block">Statistical Coordinates</span>
+              <p className="text-xs text-paper-300 font-body">{data.statistics}</p>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );
 }
 
+// ─── AI Chat Section ──────────────────────────────────────────────────────────
+
 const SUGGESTED_QUESTIONS = [
-  "What are the biggest data quality issues?",
-  "Which columns need attention?",
-  "Are there suspicious outliers?",
-  "Give me a quick summary.",
-  "What should I analyze next?",
+  "What are the biggest quality defects?",
+  "Which columns exhibit high null ratios?",
+  "Are there statistical outliers in numeric fields?",
+  "Summarize key schema risks for ETL.",
 ];
 
 function AIChatSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
@@ -871,35 +800,35 @@ function AIChatSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: strin
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-violet-400" />
-          Ask Data Detective
+    <div className="space-y-4 font-mono">
+      <div className="flex items-center justify-between border-b border-ruling pb-2">
+        <h3 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+          <Terminal className="w-3.5 h-3.5 text-evidence-amber" />
+          <span>Forensic Investigator Terminal</span>
         </h3>
-        <p className="text-xs text-gray-400">Ask anything about your dataset. AI responds based on profiling data.</p>
+        <span className="stamp-tag stamp-tag-amber text-[9px]">LIVE CHAT INTERROGATION</span>
       </div>
 
-      <div className="glass-card flex flex-col" style={{ height: '420px' }}>
+      <div className="ledger-card flex flex-col" style={{ height: '440px' }}>
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {messages.length === 0 && !isLoading && (
-            <div className="flex flex-col items-center justify-center h-full space-y-6 py-8">
-              <div className="w-14 h-14 rounded-2xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center">
-                <Bot className="w-7 h-7 text-violet-400" />
+            <div className="flex flex-col items-center justify-center h-full space-y-4 py-6 text-center">
+              <div className="w-10 h-10 rounded bg-ink-800 border border-ruling flex items-center justify-center text-evidence-amber">
+                <Bot className="w-5 h-5" />
               </div>
-              <div className="text-center space-y-1">
-                <p className="text-sm font-semibold text-white">Data Detective AI</p>
-                <p className="text-xs text-gray-400">Ask anything about this dataset</p>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-paper-100 uppercase">Data Detective Interrogation Terminal</p>
+                <p className="text-[11px] text-paper-400">Ask any question regarding dataset distributions and anomalies.</p>
               </div>
               
-              <div className="w-full space-y-2 max-w-sm">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider text-center">Suggested questions</p>
-                <div className="flex flex-wrap gap-2 justify-center">
+              <div className="space-y-1.5 max-w-md pt-2">
+                <span className="text-[9px] font-bold text-paper-400 uppercase tracking-wider block">Suggested Queries:</span>
+                <div className="flex flex-wrap gap-1.5 justify-center">
                   {SUGGESTED_QUESTIONS.map((q) => (
                     <button
                       key={q}
                       onClick={() => sendMessage(q)}
-                      className="px-3 py-1.5 rounded-lg text-xs text-gray-300 bg-white/5 border border-white/10 hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-white transition-all text-left"
+                      className="px-2.5 py-1 rounded text-[11px] text-paper-300 bg-ink-950 border border-ruling hover:border-evidence-amber hover:text-paper-100 transition-all text-left"
                     >
                       {q}
                     </button>
@@ -910,86 +839,60 @@ function AIChatSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: strin
           )}
 
           {messages.map((msg, i) => (
-            <motion.div
+            <div
               key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
               className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 border ${
                 msg.role === 'user' 
-                  ? 'bg-violet-600/20 border border-violet-500/30' 
-                  : 'bg-white/5 border border-white/10'
+                  ? 'bg-ink-800 border-evidence-amber text-evidence-amber' 
+                  : 'bg-ink-950 border-ruling text-paper-400'
               }`}>
-                {msg.role === 'user' ? (
-                  <User className="w-4 h-4 text-violet-400" />
-                ) : (
-                  <Bot className="w-4 h-4 text-gray-400" />
-                )}
+                {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
               </div>
-              <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
+              <div className={`max-w-[85%] rounded p-3 text-xs leading-relaxed ${
                 msg.role === 'user'
-                  ? 'bg-violet-600/15 border border-violet-500/20 text-white'
-                  : 'bg-white/[0.03] border border-white/5 text-gray-200'
+                  ? 'bg-ink-800 border border-ruling text-paper-100'
+                  : 'bg-ink-950 border border-ruling text-paper-200 font-body'
               }`}>
                 {msg.content}
               </div>
-            </motion.div>
+            </div>
           ))}
 
           {isLoading && (
-            <div className="flex gap-3">
-              <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                <Bot className="w-4 h-4 text-gray-400" />
-              </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-400 animate-pulse">Thinking</span>
-                  <div className="flex gap-1">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce"
-                        style={{ animationDelay: `${i * 0.15}s` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
+            <div className="flex gap-2 items-center text-xs text-evidence-amber">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Analyzing forensic docket context...</span>
             </div>
           )}
 
           {error && (
-            <div className="flex gap-2 items-start text-xs text-red-400 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
-              <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div className="p-3 rounded bg-ink-950 border border-evidence-crimson/40 text-evidence-crimson text-xs">
+              {error}
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-3 border-t border-white/5">
-          <div className="flex items-end gap-2">
-            <textarea
+        <div className="p-3 border-t border-ruling bg-ink-950">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything about this dataset... (Enter to send)"
+              placeholder="Enter interrogation query... (Press Enter to execute)"
               disabled={isLoading}
-              rows={2}
-              className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:bg-violet-500/5 transition-all resize-none disabled:opacity-50"
+              className="flex-1 bg-ink-900 border border-ruling rounded px-3 py-2 text-xs text-paper-100 placeholder-paper-400 focus:border-evidence-amber"
             />
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
-              className="p-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/30 text-white transition-all disabled:cursor-not-allowed shrink-0 shadow-lg shadow-violet-600/20"
+              className="btn-primary text-xs py-2 px-3"
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
+              <Send className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -998,17 +901,13 @@ function AIChatSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: strin
   );
 }
 
-// ─── Phase 2C — Code Studio Component ─────────────────────────────────────────
+// ─── Code Studio Section ──────────────────────────────────────────────────────
 
 const SUGGESTED_CODE_PROMPTS = [
-  "Find the top 10 customers by revenue",
-  "Calculate monthly sales",
-  "Remove duplicate records",
-  "Find columns with missing values",
-  "Calculate average order value",
-  "Create a customer-level summary",
-  "Clean invalid date values",
-  "Create a PySpark ETL pipeline",
+  "Find top 10 rows by numeric volume",
+  "Filter out rows with null values",
+  "Calculate aggregate sums by category",
+  "Build a PySpark cleaning pipeline",
 ];
 
 function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
@@ -1054,22 +953,13 @@ function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
         setPysparkResult(data);
       }
     } catch (e: any) {
-      setError(e.message || 'Code generation is temporarily unavailable. Your dataset profile and AI insights are still available.');
+      setError(e.message || 'Code generation is temporarily unavailable.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const currentResult = activeLang === 'sql' ? sqlResult : pysparkResult;
-
-  const handleTabChange = (lang: 'sql' | 'pyspark') => {
-    setActiveLang(lang);
-    if (lang === 'sql' && !sqlResult && instruction.trim()) {
-      handleGenerate('sql');
-    } else if (lang === 'pyspark' && !pysparkResult && instruction.trim()) {
-      handleGenerate('pyspark');
-    }
-  };
 
   const handleCopy = () => {
     if (!currentResult?.code) return;
@@ -1084,7 +974,7 @@ function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `dataset_${datasetId}_${activeLang}.${activeLang === 'sql' ? 'sql' : 'py'}`;
+    link.download = `pipeline_${datasetId}_${activeLang}.${activeLang === 'sql' ? 'sql' : 'py'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1092,22 +982,24 @@ function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-violet-400" />
-          Code Studio — AI Data Engineering Generator
-        </h3>
-        <p className="text-xs text-gray-400">
-          Generate production-ready SQL queries and PySpark DataFrame pipelines based on your dataset schema.
-        </p>
+    <div className="space-y-6 font-mono">
+      <div className="flex items-center justify-between border-b border-ruling pb-3">
+        <div>
+          <h3 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <Code2 className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Forensic Code & Pipeline Studio</span>
+          </h3>
+          <p className="text-xs text-paper-400 mt-0.5">
+            SYNTHESIZE CLEANING SQL & PRODUCTION PYSPARK SCRIPTS
+          </p>
+        </div>
       </div>
 
-      {/* Input Form & Suggested Prompts */}
-      <div className="glass-card p-5 space-y-4">
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-300 uppercase tracking-wider block">
-            What do you want to do with this dataset?
+      {/* Input Form & Prompts */}
+      <div className="ledger-card p-4 space-y-3">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-paper-400 uppercase tracking-wider block">
+            Pipeline Transformation Objective
           </label>
           <div className="flex gap-2">
             <input
@@ -1115,200 +1007,188 @@ function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleGenerate(activeLang); }}
-              placeholder='e.g. "Find top 10 customers by total spend" or "Remove duplicates and calculate monthly sales"'
+              placeholder='e.g. "Quarantine outliers in fare_amount and calculate average trip speed"'
               disabled={isLoading}
-              className="flex-1 bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:bg-violet-500/5 transition-all disabled:opacity-50"
+              className="flex-1 bg-ink-950 border border-ruling rounded px-3 py-2 text-xs text-paper-100 focus:border-evidence-amber"
             />
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={() => handleGenerate(activeLang)}
               disabled={!instruction.trim() || isLoading}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 disabled:bg-violet-600/30 text-white transition-all shadow-lg shadow-violet-600/20 disabled:cursor-not-allowed shrink-0"
+              className="btn-primary text-xs"
             >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              <span>{isLoading ? 'Generating...' : 'Generate Code'}</span>
-            </motion.button>
+              {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              <span>Generate Code</span>
+            </button>
           </div>
         </div>
 
-        {/* Suggested Prompts */}
-        <div className="space-y-2 pt-2 border-t border-white/5">
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Suggested Instructions</span>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTED_CODE_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => handleGenerate(activeLang, prompt)}
-                disabled={isLoading}
-                className="px-3 py-1.5 rounded-lg text-xs text-gray-300 bg-white/5 border border-white/10 hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-white transition-all disabled:opacity-50 text-left"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
+        <div className="pt-2 border-t border-ruling flex items-center gap-2 flex-wrap">
+          <span className="text-[9px] font-bold text-paper-400 uppercase">Presets:</span>
+          {SUGGESTED_CODE_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              onClick={() => handleGenerate(activeLang, prompt)}
+              className="px-2 py-0.5 rounded text-[10px] text-paper-300 bg-ink-950 border border-ruling hover:border-evidence-amber"
+            >
+              {prompt}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Language Selector & Code Viewer */}
+      {/* Language Switcher & Editor */}
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+          <div className="flex gap-1.5">
             <button
-              onClick={() => handleTabChange('sql')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeLang === 'sql'
-                  ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-white'
+              onClick={() => { setActiveLang('sql'); if (!sqlResult && instruction) handleGenerate('sql'); }}
+              className={`px-3 py-1.5 rounded text-xs border ${
+                activeLang === 'sql' ? 'bg-ink-800 border-ruling text-paper-100 font-bold' : 'text-paper-400 border-transparent hover:bg-ink-850'
               }`}
             >
-              <Code2 className="w-3.5 h-3.5" />
-              SQL Query
+              SQL Query (ANSI/DuckDB)
             </button>
             <button
-              onClick={() => handleTabChange('pyspark')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeLang === 'pyspark'
-                  ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-white'
+              onClick={() => { setActiveLang('pyspark'); if (!pysparkResult && instruction) handleGenerate('pyspark'); }}
+              className={`px-3 py-1.5 rounded text-xs border ${
+                activeLang === 'pyspark' ? 'bg-ink-800 border-ruling text-paper-100 font-bold' : 'text-paper-400 border-transparent hover:bg-ink-850'
               }`}
             >
-              <FileCode className="w-3.5 h-3.5" />
-              PySpark Pipeline
+              PySpark Pipeline (Lakehouse)
             </button>
           </div>
 
           {currentResult && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
-                <span>{copied ? 'Copied!' : 'Copy Code'}</span>
+              <button onClick={handleCopy} className="btn-secondary text-[11px] py-1 px-2.5">
+                {copied ? <Check className="w-3 h-3 text-evidence-emerald" /> : <Copy className="w-3 h-3" />}
+                <span>{copied ? 'Copied' : 'Copy Code'}</span>
               </button>
-              <button
-                onClick={handleDownload}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
-              >
-                <Download className="w-3.5 h-3.5 text-gray-400" />
+              <button onClick={handleDownload} className="btn-secondary text-[11px] py-1 px-2.5">
+                <Download className="w-3 h-3" />
                 <span>Download .{activeLang === 'sql' ? 'sql' : 'py'}</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Loading skeleton */}
-        {isLoading && <AILoadingSkeleton label={`Generating ${activeLang.toUpperCase()} code & step explanation...`} />}
+        {isLoading && <AILoadingSkeleton label={`Compiling ${activeLang.toUpperCase()} transformation pipeline...`} />}
 
-        {/* Error message */}
-        {error && (
-          <div className="glass-card p-5 flex items-start gap-4 border-amber-500/20 bg-amber-500/5">
-            <WifiOff className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-amber-300">Code generation notice</p>
-              <p className="text-xs text-gray-400 mt-1">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !currentResult && !error && (
-          <div className="glass-card p-12 text-center space-y-3 border-dashed">
-            <Terminal className="w-10 h-10 text-violet-400/40 mx-auto" />
-            <p className="text-sm text-gray-300 font-semibold">Ready to generate code</p>
-            <p className="text-xs text-gray-500 max-w-md mx-auto">
-              Type an instruction above or click a suggested prompt to generate clean SQL or PySpark code for this dataset.
-            </p>
-          </div>
-        )}
-
-        {/* Code & Explanation Display */}
         {!isLoading && currentResult && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            {/* Warnings callout */}
+          <div className="space-y-4">
             {currentResult.warnings && currentResult.warnings.length > 0 && (
-              <div className="glass-card p-4 border-amber-500/20 bg-amber-500/5 space-y-2">
-                <div className="flex items-center gap-2 text-amber-400">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Schema Note / Warning</span>
-                </div>
+              <div className="ledger-card p-3 border-evidence-amber/40 bg-ink-950 text-xs">
+                <span className="text-[10px] font-bold text-evidence-amber uppercase block mb-1">Forensic Schema Warnings:</span>
                 {currentResult.warnings.map((w, i) => (
-                  <p key={i} className="text-xs text-gray-300 leading-relaxed">{w}</p>
+                  <p key={i} className="text-paper-300 text-[11px]">{w}</p>
                 ))}
               </div>
             )}
 
-            {/* Code Block Container */}
-            <div className="rounded-xl overflow-hidden border border-white/10 bg-gray-950 font-mono">
-              <div className="px-4 py-2.5 bg-white/[0.03] border-b border-white/5 flex items-center justify-between">
-                <span className="text-xs font-bold text-violet-400 uppercase tracking-wider flex items-center gap-2">
-                  <Terminal className="w-3.5 h-3.5" />
-                  {activeLang === 'sql' ? `SQL (${(currentResult as SQLGenerationResponse).dialect || 'generic'})` : 'PySpark (DataFrame API)'}
+            <div className="ledger-card overflow-hidden">
+              <div className="ledger-header flex items-center justify-between">
+                <span>{activeLang === 'sql' ? 'ANSI SQL CLEANSE' : 'PYSPARK ETL PIPELINE'}</span>
+                <span className="text-[10px] text-paper-400">READY TO INTEGRATE</span>
+              </div>
+              <div className="p-4 bg-ink-950 overflow-x-auto max-h-[400px]">
+                <pre className="text-xs text-paper-100 font-mono leading-relaxed">{currentResult.code}</pre>
+              </div>
+            </div>
+
+            {currentResult.explanation && (
+              <div className="ledger-card p-4 space-y-2">
+                <span className="text-[10px] font-bold uppercase text-paper-400 block border-b border-ruling pb-1">
+                  Transformation Logic Steps:
                 </span>
-                <span className="text-[10px] text-gray-500">Preview & Download Only — Never Executed</span>
-              </div>
-              <div className="p-4 overflow-x-auto max-h-[450px]">
-                <table className="w-full text-left text-xs font-mono border-collapse">
-                  <tbody>
-                    {currentResult.code.split('\n').map((line, index) => (
-                      <tr key={index} className="hover:bg-white/[0.02]">
-                        <td className="pr-4 py-0.5 text-gray-600 select-none text-right w-10 text-[11px] font-mono border-r border-white/5">
-                          {index + 1}
-                        </td>
-                        <td className="pl-4 py-0.5 text-gray-200 whitespace-pre font-mono leading-relaxed">
-                          {line}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Used Columns tags */}
-            {currentResult.used_columns && currentResult.used_columns.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap pt-1">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Referenced Schema Columns:</span>
-                {currentResult.used_columns.map(col => (
-                  <span key={col} className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/10 text-violet-400 border border-violet-500/20">
-                    {col}
-                  </span>
-                ))}
+                <ul className="space-y-1.5 text-xs text-paper-300 font-body">
+                  {currentResult.explanation.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-evidence-amber font-mono font-bold">{i + 1}.</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
-
-            {/* Explanation Section */}
-            <div className="glass-card p-5 space-y-3">
-              <div className="flex items-center gap-2">
-                <Info className="w-4 h-4 text-violet-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Code Transformation Explanation</h4>
-              </div>
-              <ul className="space-y-2">
-                {currentResult.explanation.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-xs text-gray-300 leading-relaxed">
-                    <span className="w-5 h-5 rounded-full bg-violet-600/20 text-violet-400 border border-violet-500/30 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <span className="pt-0.5">{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// ─── Main Page Component ──────────────────────────────────────────────────────
+// ─── Data Pipeline Section ────────────────────────────────────────────────────
+
+function DataPipelineSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
+  const { data: pipeline, isLoading, refetch } = useQuery<PipelineStatusResponse>({
+    queryKey: ['pipeline-status', datasetId],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/pipeline`);
+      if (!res.ok) throw new Error('Failed to fetch pipeline status');
+      return res.json();
+    },
+  });
+
+  const status = pipeline?.pipeline_status || 'LOCAL';
+
+  return (
+    <div className="space-y-6 font-mono">
+      <div className="flex items-center justify-between border-b border-ruling pb-3">
+        <div>
+          <h3 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <Cloud className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Lakehouse Partition & Athena Query Pipeline</span>
+          </h3>
+          <p className="text-xs text-paper-400 mt-0.5">
+            AWS S3 IMMUTABLE LAKEHOUSE ENCLAVE STATUS
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="stamp-tag stamp-tag-amber text-[9px]">{status}</span>
+          <button onClick={() => refetch()} className="btn-secondary text-xs py-1 px-2.5">
+            <RefreshCw className="w-3 h-3" />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {!pipeline?.aws_configured && !isLoading && (
+        <div className="ledger-card p-4 flex items-start gap-3 border-ruling bg-ink-950">
+          <CloudOff className="w-4 h-4 text-paper-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-xs">
+            <p className="font-bold text-paper-200 uppercase">Local Filesystem Mode Active</p>
+            <p className="text-paper-400 font-body">
+              AWS Lakehouse partitions are optional. All local forensic audits, AI interrogations, and SQL code scripts operate natively on local storage.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {pipeline?.aws_configured && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="ledger-card p-4 space-y-2">
+            <span className="text-[10px] font-bold text-paper-400 uppercase block">S3 Bucket Custody</span>
+            <p className="text-xs text-paper-100 font-bold">{pipeline.storage_provider}</p>
+            <p className="text-[11px] text-paper-400 truncate">RAW: {pipeline.raw_s3_key || 'N/A'}</p>
+          </div>
+          <div className="ledger-card p-4 space-y-2">
+            <span className="text-[10px] font-bold text-paper-400 uppercase block">Glue Data Catalog</span>
+            <p className="text-xs text-paper-100 font-bold">{pipeline.catalog_database || 'default'}</p>
+            <p className="text-[11px] text-paper-400">TABLE: {pipeline.catalog_table || 'unregistered'}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dataset Details Page ────────────────────────────────────────────────
 
 export default function DatasetDetailsPage({ params }: { params: { id: string } }) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const { id } = params;
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code' | 'pipeline'>('overview');
   const [activeAITab, setActiveAITab] = useState<'summary' | 'quality' | 'recommendations' | 'column' | 'chat'>('summary');
   const [selectedCatCol, setSelectedCatCol] = useState<string>('');
 
@@ -1333,24 +1213,24 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-40 gap-3">
-        <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-400 font-medium">Analyzing dataset profile records...</p>
+      <div className="flex flex-col items-center justify-center py-32 gap-3 font-mono text-xs text-paper-400">
+        <RefreshCw className="w-6 h-6 text-evidence-amber animate-spin" />
+        <span>INTERROGATING DATASET SPECIMEN #{id.slice(0, 8)}...</span>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="p-6 max-w-xl mx-auto text-center space-y-4">
-        <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
-        <h2 className="text-xl font-bold text-white">Dataset Profile Not Found</h2>
-        <p className="text-sm text-gray-400">
-          The requested profile failed or this dataset does not have active diagnostics metadata.
+      <div className="ledger-card p-8 max-w-xl mx-auto text-center space-y-4 font-mono">
+        <AlertTriangle className="w-10 h-10 text-evidence-crimson mx-auto" />
+        <h2 className="text-sm font-bold text-paper-50 uppercase">Case Dossier Not Found</h2>
+        <p className="text-xs text-paper-400 font-body">
+          Unable to locate active profile telemetry for case reference #{id}.
         </p>
-        <Link href="/datasets" className="inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 font-semibold pt-2">
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Ingested List</span>
+        <Link href="/datasets" className="btn-secondary text-xs inline-flex mt-2">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Return to Evidence Vault</span>
         </Link>
       </div>
     );
@@ -1362,110 +1242,129 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
   const categoricalCols = columnsList.filter(([_, data]) => ["Category", "Text", "Boolean"].includes(data.inferred_type));
   const columnNames = Object.keys(pData.columns);
 
-  // Default selection
   if (!selectedCatCol && categoricalCols.length > 0) {
     setSelectedCatCol(categoricalCols[0][0]);
   }
 
   const selectedCatData = selectedCatCol ? pData.columns[selectedCatCol] : null;
 
-  const mainTabs = ['overview', 'columns', 'numeric', 'categorical', 'charts', 'ai', 'code'] as const;
+  const mainTabs = [
+    { id: 'overview', label: '01. Dossier Summary' },
+    { id: 'columns', label: '02. Schema Dissection' },
+    { id: 'numeric', label: '03. Numeric Ledger' },
+    { id: 'categorical', label: '04. Categorical Ledger' },
+    { id: 'charts', label: '05. Forensic Charts' },
+    { id: 'ai', label: '06. AI Intelligence' },
+    { id: 'code', label: '07. Code Studio' },
+    { id: 'pipeline', label: '08. Lakehouse' },
+  ] as const;
 
   const aiSubTabs: { key: typeof activeAITab; label: string; icon: React.ComponentType<any> }[] = [
-    { key: 'summary', label: 'AI Overview', icon: Brain },
-    { key: 'quality', label: 'Quality Insights', icon: AlertCircle },
-    { key: 'recommendations', label: 'Recommendations', icon: Wrench },
-    { key: 'column', label: 'Column Explainer', icon: BarChart3 },
-    { key: 'chat', label: 'Ask Data Detective', icon: MessageSquare },
+    { key: 'summary', label: 'Executive Summary', icon: Brain },
+    { key: 'quality', label: 'Quality Defects', icon: AlertCircle },
+    { key: 'recommendations', label: 'Playbook', icon: Wrench },
+    { key: 'column', label: 'Column Ledger', icon: BarChart3 },
+    { key: 'chat', label: 'Investigator Terminal', icon: MessageSquare },
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Back button and Header */}
+    <div className="space-y-8 py-2">
+      {/* Dossier Header */}
       <div className="space-y-4">
-        <Link href="/datasets" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Datasets</span>
+        <Link href="/datasets" className="inline-flex items-center gap-2 text-xs font-mono text-paper-400 hover:text-paper-100 transition-colors">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>BACK TO CASE ARCHIVES</span>
         </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
-              <FileSpreadsheet className="w-6 h-6" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ruling pb-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded bg-ink-800 border border-ruling flex items-center justify-center text-evidence-amber font-mono font-bold text-sm">
+              <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Dataset Diagnostics</h1>
-              <p className="text-xs text-gray-400 font-mono mt-1">Dataset ID: {profile.dataset_id}</p>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display text-xl sm:text-2xl font-bold uppercase text-paper-50 tracking-tight">
+                  Case Dossier: {profile.dataset_id.slice(0, 12)}
+                </h1>
+                <span className={`stamp-tag ${
+                  pData.health_score >= 85 ? 'stamp-tag-emerald' : pData.health_score >= 60 ? 'stamp-tag-amber' : 'stamp-tag-crimson'
+                } text-[9px]`}>
+                  {pData.health_score}% VERDICT
+                </span>
+              </div>
+              <p className="text-[11px] font-mono text-paper-400 mt-0.5">
+                RECORDED: {new Date(profile.created_at).toLocaleString()} • REGISTRY TAG #{profile.id.slice(0, 8)}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Analytics summary panels */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="glass-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Total Rows</span>
-          <p className="text-xl font-extrabold text-white">{pData?.total_rows?.toLocaleString() ?? '-'}</p>
+      {/* Forensic KPI Metric Badges */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono">
+        <div className="ledger-card p-3.5 space-y-1">
+          <span className="text-[9px] uppercase font-bold text-paper-400">Total Rows</span>
+          <p className="text-xl font-bold text-paper-50">{pData?.total_rows?.toLocaleString() ?? '-'}</p>
         </div>
-        <div className="glass-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Columns</span>
-          <p className="text-xl font-extrabold text-white">{pData?.total_columns?.toLocaleString() ?? '-'}</p>
+        <div className="ledger-card p-3.5 space-y-1">
+          <span className="text-[9px] uppercase font-bold text-paper-400">Schemas Mapped</span>
+          <p className="text-xl font-bold text-paper-50">{pData?.total_columns?.toLocaleString() ?? '-'}</p>
         </div>
-        <div className="glass-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Missing Cells</span>
-          <p className="text-xl font-extrabold text-white">{pData?.total_missing_values?.toLocaleString() ?? '-'}</p>
+        <div className="ledger-card p-3.5 space-y-1">
+          <span className="text-[9px] uppercase font-bold text-evidence-amber">Null Cells</span>
+          <p className="text-xl font-bold text-paper-50">{pData?.total_missing_values?.toLocaleString() ?? '-'}</p>
         </div>
-        <div className="glass-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Memory footprint</span>
-          <p className="text-xl font-extrabold text-white">{formatBytes(pData?.memory_usage_bytes)}</p>
+        <div className="ledger-card p-3.5 space-y-1">
+          <span className="text-[9px] uppercase font-bold text-paper-400">Memory Allocation</span>
+          <p className="text-xl font-bold text-paper-50">{formatBytes(pData?.memory_usage_bytes)}</p>
         </div>
-        <div className="glass-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Total Outliers</span>
-          <p className="text-xl font-extrabold text-white">{pData?.total_outliers?.toLocaleString() ?? '-'}</p>
+        <div className="ledger-card p-3.5 space-y-1">
+          <span className="text-[9px] uppercase font-bold text-evidence-crimson">Outliers Flagged</span>
+          <p className="text-xl font-bold text-paper-50">{pData?.total_outliers?.toLocaleString() ?? '-'}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Quality Health Score Card */}
-        <section className="glass-card p-6 flex flex-col justify-between space-y-6">
-          <div className="space-y-1">
-            <h3 className="text-md font-bold text-white">Ingestion Health Score</h3>
-            <p className="text-xs text-gray-400">Data quality metrics calculated via weighted indices.</p>
+      {/* Main Investigation Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Integrity Gauge Panel */}
+        <section className="ledger-card p-5 flex flex-col justify-between space-y-6 font-mono">
+          <div className="space-y-1 border-b border-ruling pb-3">
+            <span className="text-[10px] font-bold uppercase text-evidence-amber">Forensic Health Verdict</span>
+            <h3 className="text-sm font-bold text-paper-100">Weighted Quality Grade</h3>
           </div>
           
-          <div className="flex flex-col items-center justify-center py-6 gap-2">
-            <div className="relative w-32 h-32 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="64" cy="64" r="54" stroke="rgba(255,255,255,0.03)" strokeWidth="10" fill="transparent" />
-                <circle cx="64" cy="64" r="54" stroke="#8b5cf6" strokeWidth="10" fill="transparent"
-                  strokeDasharray={2 * Math.PI * 54}
-                  strokeDashoffset={2 * Math.PI * 54 * (1 - pData.health_score / 100)}
-                  style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-white">{pData.health_score}</span>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">GRADE</span>
-              </div>
+          <div className="flex flex-col items-center justify-center py-4 space-y-4">
+            <div className="text-4xl font-bold text-paper-50">
+              {pData.health_score}<span className="text-base text-paper-400">/100</span>
+            </div>
+
+            {/* Segmented Forensic Gauge */}
+            <div className="grid grid-cols-10 gap-1 w-full max-w-[220px] h-3">
+              {[...Array(10)].map((_, i) => {
+                const filled = (i + 1) * 10 <= pData.health_score;
+                const color = pData.health_score >= 85 ? 'bg-evidence-emerald' : pData.health_score >= 60 ? 'bg-evidence-amber' : 'bg-evidence-crimson';
+                return (
+                  <div 
+                    key={i} 
+                    className={`h-full rounded-sm ${filled ? color : 'bg-ink-800'}`}
+                  />
+                );
+              })}
             </div>
             
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-              pData.health_score >= 85 
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15' 
-                : pData.health_score >= 60 
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/15' 
-                : 'bg-red-500/10 text-red-400 border border-red-500/15'
-            }`}>
-              {pData.health_score >= 85 ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-              <span>{pData.health_score >= 85 ? 'Excellent Profile' : pData.health_score >= 60 ? 'Warning Flags' : 'Needs Ingest Cleanup'}</span>
+            <span className={`stamp-tag ${
+              pData.health_score >= 85 ? 'stamp-tag-emerald' : pData.health_score >= 60 ? 'stamp-tag-amber' : 'stamp-tag-crimson'
+            } text-[10px]`}>
+              {pData.health_score >= 85 ? 'PASSING FORENSIC AUDIT' : pData.health_score >= 60 ? 'QUALITY DEFECTS NOTED' : 'CRITICAL REMEDIATION REQUIRED'}
             </span>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-white/5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Score deductions checklist</h4>
-            <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+          <div className="space-y-2 pt-3 border-t border-ruling">
+            <span className="text-[10px] font-bold uppercase text-paper-400 block">Deductions Audit Checklist:</span>
+            <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 text-xs text-paper-300 font-body">
               {pData.health_breakdown.map((item, i) => (
-                <div key={i} className="flex gap-2 items-start text-xs text-gray-400 leading-relaxed">
-                  <span className="text-violet-400 mt-0.5">•</span>
+                <div key={i} className="flex gap-2 items-start text-[11px]">
+                  <span className="text-evidence-amber font-mono mt-0.5">•</span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -1473,89 +1372,86 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
           </div>
         </section>
 
-        {/* Tabbed Stats Panel */}
-        <section className="lg:col-span-2 glass-card p-6 flex flex-col justify-between space-y-6">
-          <div className="flex border-b border-white/5 pb-3 items-center gap-2 overflow-x-auto">
+        {/* Tabbed Investigation Panels */}
+        <section className="lg:col-span-2 ledger-card p-5 flex flex-col justify-between space-y-6">
+          {/* Dossier Tabs Navigation */}
+          <div className="flex border-b border-ruling pb-2 items-center gap-1 overflow-x-auto font-mono text-xs">
             {mainTabs.map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold capitalize transition-all shrink-0 flex items-center gap-1.5 ${
-                  activeTab === tab 
-                    ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' 
-                    : 'text-gray-400 hover:text-white'
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3 py-1.5 rounded transition-all shrink-0 border ${
+                  activeTab === tab.id 
+                    ? 'bg-ink-800 text-paper-100 border-ruling font-bold' 
+                    : 'text-paper-400 hover:text-paper-200 border-transparent hover:bg-ink-850'
                 }`}
               >
-                {tab === 'ai' && <Sparkles className="w-3 h-3 text-violet-400" />}
-                {tab === 'code' && <Terminal className="w-3 h-3 text-violet-400" />}
-                {tab === 'ai' ? 'AI Intelligence' : tab === 'code' ? 'Code Studio' : tab}
+                {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="flex-grow min-h-[350px]">
-            {/* TAB: Overview Summary */}
+          <div className="flex-grow min-h-[360px]">
+            {/* TAB: Dossier Summary */}
             {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-white">Diagnostics Summary</h3>
-                  <p className="text-xs text-gray-400">Key insights for duplicate rows, columns and missing data.</p>
+              <div className="space-y-4 font-mono text-xs">
+                <div className="border-b border-ruling pb-2">
+                  <h3 className="font-bold text-paper-100 uppercase">Diagnostics Telemetry</h3>
+                  <p className="text-[11px] text-paper-400 font-body">Core metrics covering schema parity, duplicate records, and memory partition.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-2">
-                    <h4 className="text-xs font-bold text-gray-300">Ingestion Duplicate Analysis</h4>
-                    <div className="flex justify-between items-end">
-                      <span className="text-xl font-extrabold text-white">{pData?.total_duplicate_rows ?? '-'}</span>
-                      <span className="text-xs text-violet-400 font-semibold">
-                        {pData?.duplicate_percentage !== undefined && pData?.duplicate_percentage !== null ? `${pData.duplicate_percentage.toFixed(2)}%` : '-'} of rows
-                      </span>
-                    </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 bg-ink-950 rounded border border-ruling space-y-1">
+                    <span className="text-[10px] font-bold text-paper-400 uppercase">Duplicate Record Signatures</span>
+                    <p className="text-lg font-bold text-paper-50">{pData?.total_duplicate_rows ?? 0}</p>
+                    <p className="text-[10px] text-paper-400">RATIO: {pData?.duplicate_percentage?.toFixed(2) ?? 0}% of total table</p>
                   </div>
-                  <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 space-y-2">
-                    <h4 className="text-xs font-bold text-gray-300">File Ingestion specs</h4>
-                    <div className="flex justify-between items-end">
-                      <span className="text-xs text-gray-400">Total Cells footprint:</span>
-                      <span className="text-xs text-white font-bold">
-                        {pData?.total_rows !== undefined && pData?.total_rows !== null && pData?.total_columns !== undefined && pData?.total_columns !== null 
-                          ? (pData.total_rows * pData.total_columns).toLocaleString() 
-                          : '-'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-end">
-                      <span className="text-xs text-gray-400">Total Invalid Dates:</span>
-                      <span className="text-xs text-white font-bold">{pData?.total_invalid_dates ?? '-'}</span>
-                    </div>
+                  <div className="p-3.5 bg-ink-950 rounded border border-ruling space-y-1">
+                    <span className="text-[10px] font-bold text-paper-400 uppercase">Outlier Boundary Infractions</span>
+                    <p className="text-lg font-bold text-evidence-crimson">{pData?.total_outliers ?? 0}</p>
+                    <p className="text-[10px] text-paper-400">THRESHOLD: 1.5× IQR calculation</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* TAB: Columns details */}
+            {/* TAB: Schema Dissection Table */}
             {activeTab === 'columns' && (
-              <div className="space-y-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-gray-400 border-collapse">
+              <div className="space-y-4 font-mono">
+                <div className="border-b border-ruling pb-2">
+                  <h3 className="text-xs font-bold text-paper-100 uppercase">Schema Dissection Table</h3>
+                  <p className="text-[11px] text-paper-400 font-body">Column data type detection, null cell counts, and distinct value cardinality.</p>
+                </div>
+
+                <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                  <table className="forensic-table">
                     <thead>
-                      <tr className="border-b border-white/5 text-[10px] text-gray-500 uppercase tracking-wider">
-                        <th className="pb-3 font-semibold">Column</th>
-                        <th className="pb-3 font-semibold">Inferred Type</th>
-                        <th className="pb-3 font-semibold">Missing (Null)</th>
-                        <th className="pb-3 font-semibold">Unique count</th>
-                        <th className="pb-3 font-semibold">Duplicate count</th>
+                      <tr>
+                        <th>Field Name</th>
+                        <th>Type</th>
+                        <th>Null Cells</th>
+                        <th>Missing %</th>
+                        <th>Distinct Values</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {columnsList.map(([colName, col]) => (
-                        <tr key={colName} className="hover:bg-white/[0.01]">
-                          <td className="py-2.5 font-semibold text-white truncate max-w-[150px]" title={colName}>{colName}</td>
-                          <td className="py-2.5">
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/10 text-violet-400 border border-violet-500/15">
-                              {col.inferred_type}
+                    <tbody>
+                      {columnsList.map(([colName, colData]) => (
+                        <tr key={colName}>
+                          <td className="font-bold text-paper-100">{colName}</td>
+                          <td>
+                            <span className="stamp-tag stamp-tag-cyan text-[9px]">
+                              {colData.inferred_type}
                             </span>
                           </td>
-                          <td className="py-2.5">{col.null_count} ({col.missing_percentage.toFixed(1)}%)</td>
-                          <td className="py-2.5">{col.unique_values}</td>
-                          <td className="py-2.5">{col.duplicate_values}</td>
+                          <td className={colData.null_count > 0 ? 'text-evidence-amber font-bold' : 'text-paper-400'}>
+                            {colData.null_count}
+                          </td>
+                          <td>
+                            <span className={colData.missing_percentage > 0 ? 'text-evidence-amber' : 'text-paper-400'}>
+                              {colData.missing_percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="text-paper-300">{colData.cardinality}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1564,137 +1460,117 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
               </div>
             )}
 
-            {/* TAB: Numeric bounds */}
+            {/* TAB: Numeric Ledger */}
             {activeTab === 'numeric' && (
-              <div className="space-y-4">
-                {numericCols.length === 0 ? (
-                  <p className="text-xs text-gray-500 py-10 text-center font-medium">No numerical columns found to analyze.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-gray-400 border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/5 text-[10px] text-gray-500 uppercase tracking-wider">
-                          <th className="pb-3 font-semibold">Column</th>
-                          <th className="pb-3 font-semibold">Mean</th>
-                          <th className="pb-3 font-semibold">Median</th>
-                          <th className="pb-3 font-semibold">Min / Max</th>
-                          <th className="pb-3 font-semibold">Outliers</th>
-                          <th className="pb-3 font-semibold">IQR Bounds</th>
+              <div className="space-y-4 font-mono">
+                <div className="border-b border-ruling pb-2">
+                  <h3 className="text-xs font-bold text-paper-100 uppercase">Numeric Field Statistics</h3>
+                  <p className="text-[11px] text-paper-400 font-body">Statistical moments, quartiles, mean, stddev, and outlier counts.</p>
+                </div>
+
+                <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                  <table className="forensic-table">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Mean</th>
+                        <th>StdDev</th>
+                        <th>Outliers</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {numericCols.map(([colName, colData]) => (
+                        <tr key={colName}>
+                          <td className="font-bold text-paper-100">{colName}</td>
+                          <td>{colData.min !== null && colData.min !== undefined ? colData.min : '-'}</td>
+                          <td>{colData.max !== null && colData.max !== undefined ? colData.max : '-'}</td>
+                          <td>{colData.mean !== null && colData.mean !== undefined ? Number(colData.mean).toFixed(2) : '-'}</td>
+                          <td>{colData.std !== null && colData.std !== undefined ? Number(colData.std).toFixed(2) : '-'}</td>
+                          <td className={colData.outlier_count > 0 ? 'text-evidence-crimson font-bold' : 'text-paper-400'}>
+                            {colData.outlier_count || 0}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {numericCols.map(([colName, col]) => (
-                          <tr key={colName} className="hover:bg-white/[0.01]">
-                            <td className="py-2.5 font-semibold text-white truncate max-w-[120px]" title={colName}>{colName}</td>
-                            <td className="py-2.5">{col.mean?.toFixed(2)}</td>
-                            <td className="py-2.5">{col.median?.toFixed(2)}</td>
-                            <td className="py-2.5 text-gray-300 font-medium">
-                              {col.min?.toFixed(1)} / {col.max?.toFixed(1)}
-                            </td>
-                            <td className="py-2.5">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                col.outlier_count > 0 
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/15' 
-                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
-                              }`}>
-                                {col.outlier_count} outliers
-                              </span>
-                            </td>
-                            <td className="py-2.5 text-gray-500 text-[10px]">
-                              [{col.lower_bound?.toFixed(1)}, {col.upper_bound?.toFixed(1)}]
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB: Categorical details */}
-            {activeTab === 'categorical' && (
-              <div className="space-y-6">
-                {categoricalCols.length === 0 ? (
-                  <p className="text-xs text-gray-500 py-10 text-center font-medium">No categorical columns found to analyze.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-1 border-r border-white/5 pr-4 flex flex-col gap-1.5 max-h-[300px] overflow-y-auto">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Select Column</span>
-                      {categoricalCols.map(([colName]) => (
-                        <button
-                          key={colName}
-                          onClick={() => setSelectedCatCol(colName)}
-                          className={`text-left text-xs p-2 rounded-lg transition-all truncate ${
-                            selectedCatCol === colName 
-                              ? 'bg-violet-600/10 text-violet-400 border border-violet-500/15 font-semibold' 
-                              : 'text-gray-400 hover:bg-white/5 border border-transparent'
-                          }`}
-                        >
-                          {colName}
-                        </button>
                       ))}
-                    </div>
-                    
-                    <div className="md:col-span-2 space-y-4">
-                      {selectedCatData ? (
-                        <>
-                          <div className="flex justify-between items-end border-b border-white/5 pb-2">
-                            <div>
-                              <h4 className="text-sm font-bold text-white">{selectedCatCol}</h4>
-                              <p className="text-[10px] text-gray-400 mt-0.5">Cardinality: {selectedCatData.cardinality} categories</p>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Top Category Distribution</span>
-                            <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                              {selectedCatData.top_categories?.map((cat: any, index: number) => {
-                                const totalRows = pData?.total_rows ?? 0;
-                                const percentage = totalRows > 0 && cat?.count !== undefined && cat?.count !== null
-                                  ? ((cat.count / totalRows) * 100).toFixed(1)
-                                  : '0.0';
-                                return (
-                                  <div key={index} className="space-y-1">
-                                    <div className="flex justify-between text-xs font-semibold">
-                                      <span className="text-gray-300 truncate max-w-[150px]">{cat?.value ?? '-'}</span>
-                                      <span className="text-gray-400">
-                                        {cat?.count !== undefined && cat?.count !== null ? cat.count.toLocaleString() : '-'} ({percentage}%)
-                                      </span>
-                                    </div>
-                                    <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                                      <div className="bg-violet-600 h-full rounded-full" style={{ width: `${percentage}%` }} />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-xs text-gray-500">Select a categorical column to show statistics details.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* TAB: Recharts Visualizations */}
+            {/* TAB: Categorical Ledger */}
+            {activeTab === 'categorical' && (
+              <div className="space-y-4 font-mono">
+                <div className="border-b border-ruling pb-2">
+                  <h3 className="text-xs font-bold text-paper-100 uppercase">Categorical Frequency Distribution</h3>
+                  <p className="text-[11px] text-paper-400 font-body">Inspect unique categorical values and occurrence distributions.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
+                    {categoricalCols.map(([colName]) => (
+                      <button
+                        key={colName}
+                        onClick={() => setSelectedCatCol(colName)}
+                        className={`w-full text-left p-2 rounded text-xs border ${
+                          selectedCatCol === colName 
+                            ? 'bg-ink-800 border-evidence-amber text-paper-100 font-bold' 
+                            : 'text-paper-400 border-transparent hover:bg-ink-850'
+                        }`}
+                      >
+                        {colName}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="md:col-span-2 p-4 bg-ink-950 rounded border border-ruling space-y-3">
+                    {selectedCatData ? (
+                      <>
+                        <div className="flex items-center justify-between border-b border-ruling pb-2">
+                          <span className="font-bold text-paper-100 text-xs">{selectedCatCol}</span>
+                          <span className="text-[10px] text-paper-400">CARDINALITY: {selectedCatData.cardinality}</span>
+                        </div>
+
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                          {selectedCatData.top_categories?.map((cat: any, index: number) => {
+                            const totalRows = pData?.total_rows ?? 0;
+                            const percentage = totalRows > 0 && cat?.count ? ((cat.count / totalRows) * 100).toFixed(1) : '0.0';
+                            return (
+                              <div key={index} className="space-y-1">
+                                <div className="flex justify-between text-[11px]">
+                                  <span className="text-paper-200 truncate max-w-[160px]">{cat?.value ?? '-'}</span>
+                                  <span className="text-paper-400">{cat?.count} ({percentage}%)</span>
+                                </div>
+                                <div className="w-full bg-ink-900 rounded h-1.5 overflow-hidden">
+                                  <div className="bg-evidence-amber h-full" style={{ width: `${percentage}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-paper-400">Select a categorical field to view distribution breakdown.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Forensic Charts */}
             {activeTab === 'charts' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-                <div className="glass-card p-5 space-y-3">
-                  <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-violet-400" />
-                    <span>Missing Values Count</span>
-                  </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 font-mono">
+                <div className="ledger-card p-4 space-y-2">
+                  <span className="text-[10px] font-bold text-paper-400 uppercase block border-b border-ruling pb-1">
+                    Null Values Count by Schema Field
+                  </span>
                   <MissingValuesChart columnsData={pData.columns} />
                 </div>
-                <div className="glass-card p-5 space-y-3">
-                  <h4 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                    <LineChart className="w-4 h-4 text-emerald-400" />
-                    <span>Column Completeness (%)</span>
-                  </h4>
+                <div className="ledger-card p-4 space-y-2">
+                  <span className="text-[10px] font-bold text-paper-400 uppercase block border-b border-ruling pb-1">
+                    Field Completeness Ratio (%)
+                  </span>
                   <ColumnCompletenessChart columnsData={pData.columns} />
                 </div>
               </div>
@@ -1702,42 +1578,30 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
 
             {/* TAB: AI Intelligence */}
             {activeTab === 'ai' && (
-              <div className="space-y-5">
-                {/* AI sub-tab navigation */}
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
+              <div className="space-y-5 font-mono">
+                <div className="flex gap-1.5 border-b border-ruling pb-2 overflow-x-auto">
                   {aiSubTabs.map(({ key, label, icon: Icon }) => (
                     <button
                       key={key}
                       onClick={() => setActiveAITab(key)}
-                      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                        activeAITab === key
-                          ? 'bg-violet-600/15 text-violet-300 border border-violet-500/25'
-                          : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border ${
+                        activeAITab === key 
+                          ? 'bg-ink-800 text-paper-100 border-ruling font-bold' 
+                          : 'text-paper-400 border-transparent hover:bg-ink-850'
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" />
-                      {label}
+                      <Icon className="w-3.5 h-3.5 text-evidence-amber" />
+                      <span>{label}</span>
                     </button>
                   ))}
                 </div>
 
-                {/* AI sub-tab content */}
                 <div>
-                  {activeAITab === 'summary' && (
-                    <AIOverviewSection datasetId={id} apiUrl={apiUrl} />
-                  )}
-                  {activeAITab === 'quality' && (
-                    <AIQualitySection datasetId={id} apiUrl={apiUrl} />
-                  )}
-                  {activeAITab === 'recommendations' && (
-                    <AIRecommendationsSection datasetId={id} apiUrl={apiUrl} />
-                  )}
-                  {activeAITab === 'column' && (
-                    <AIColumnExplainerSection datasetId={id} apiUrl={apiUrl} columnNames={columnNames} />
-                  )}
-                  {activeAITab === 'chat' && (
-                    <AIChatSection datasetId={id} apiUrl={apiUrl} />
-                  )}
+                  {activeAITab === 'summary' && <AIOverviewSection datasetId={id} apiUrl={apiUrl} />}
+                  {activeAITab === 'quality' && <AIQualitySection datasetId={id} apiUrl={apiUrl} />}
+                  {activeAITab === 'recommendations' && <AIRecommendationsSection datasetId={id} apiUrl={apiUrl} />}
+                  {activeAITab === 'column' && <AIColumnExplainerSection datasetId={id} apiUrl={apiUrl} columnNames={columnNames} />}
+                  {activeAITab === 'chat' && <AIChatSection datasetId={id} apiUrl={apiUrl} />}
                 </div>
               </div>
             )}
@@ -1745,6 +1609,11 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
             {/* TAB: Code Studio */}
             {activeTab === 'code' && (
               <AICodeStudioSection datasetId={id} apiUrl={apiUrl} />
+            )}
+
+            {/* TAB: Data Pipeline */}
+            {activeTab === 'pipeline' && (
+              <DataPipelineSection datasetId={id} apiUrl={apiUrl} />
             )}
           </div>
         </section>
