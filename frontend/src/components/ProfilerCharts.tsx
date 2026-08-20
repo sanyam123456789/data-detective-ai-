@@ -15,20 +15,20 @@ import {
   CartesianGrid
 } from 'recharts';
 
-const FORENSIC_COLORS = ['#38BDF8', '#E59500', '#D9383A', '#10B981', '#94A3B8', '#64748B', '#F59E0B'];
+const FORENSIC_COLORS = ['#C89D66', '#E08D9D', '#5FA788', '#D97762', '#D4A373', '#F4A6B6', '#B88950'];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-ink-950 border border-ruling p-2.5 rounded shadow-lg text-xs font-mono space-y-1">
-        <p className="font-bold text-paper-100 truncate max-w-[200px] border-b border-ruling pb-1 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-evidence-amber" />
+      <div className="bg-[#181216] border border-[#382A34] p-2.5 rounded-lg shadow-xl text-xs font-mono space-y-1">
+        <p className="font-bold text-[#FAF5F6] truncate max-w-[200px] border-b border-[#382A34] pb-1 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#C89D66]" />
           <span>{label}</span>
         </p>
         {payload.map((p: any) => (
-          <p key={p.name} className="text-paper-300 flex items-center justify-between gap-3 text-[11px]">
-            <span className="capitalize">{p.name}:</span>
-            <span className="font-bold text-paper-100">
+          <p key={p.name} className="text-[#D6C7C2] flex items-center justify-between gap-3 text-[11px]">
+            <span className="capitalize font-medium">{p.name}:</span>
+            <span className="font-bold text-[#FAF5F6]">
               {typeof p.value === 'number' && (p.name.includes('percentage') || p.name.includes('Ratio') || p.name.includes('Completeness')) 
                 ? `${p.value.toFixed(1)}%` 
                 : p.value.toLocaleString()}
@@ -41,7 +41,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-// 1. Missing Values Bar Chart (Forensic Anomaly Bar)
+// 1. Missing Values Bar Chart
 export function MissingValuesChart({ columnsData }: { columnsData: Record<string, any> }) {
   const data = Object.entries(columnsData).map(([colName, stats]) => ({
     name: colName,
@@ -52,10 +52,10 @@ export function MissingValuesChart({ columnsData }: { columnsData: Record<string
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
-          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <CartesianGrid strokeDasharray="2 2" stroke="#382A34" vertical={false} />
           <XAxis 
             dataKey="name" 
-            stroke="#64748B" 
+            stroke="#9E8B95" 
             fontSize={10} 
             fontFamily="monospace" 
             tickLine={false} 
@@ -63,16 +63,16 @@ export function MissingValuesChart({ columnsData }: { columnsData: Record<string
             textAnchor="end"
             interval={0}
           />
-          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} />
+          <YAxis stroke="#9E8B95" fontSize={10} fontFamily="monospace" tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Null Cells" fill="#D9383A" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Null Cells" fill="#D96B60" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-// 2. Data Type Distribution Pie Chart (Forensic Schema Distribution)
+// 2. Data Type Distribution Pie Chart
 export function DataTypeDistributionChart({ detectedTypes }: { detectedTypes: Record<string, string> }) {
   const counts: Record<string, number> = {};
   Object.values(detectedTypes).forEach((t) => {
@@ -96,7 +96,7 @@ export function DataTypeDistributionChart({ detectedTypes }: { detectedTypes: Re
             outerRadius={72}
             paddingAngle={2}
             dataKey="value"
-            stroke="#13171F"
+            stroke="#141013"
             strokeWidth={2}
           >
             {data.map((entry, index) => (
@@ -107,7 +107,7 @@ export function DataTypeDistributionChart({ detectedTypes }: { detectedTypes: Re
           <Legend 
             verticalAlign="bottom"
             height={36}
-            formatter={(value) => <span className="text-[11px] font-mono text-paper-300 capitalize">{value}</span>} 
+            formatter={(value) => <span className="text-[11px] font-mono text-[#D6C7C2] capitalize font-medium">{value}</span>} 
           />
         </PieChart>
       </ResponsiveContainer>
@@ -129,10 +129,10 @@ export function ColumnCompletenessChart({ columnsData }: { columnsData: Record<s
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
-          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <CartesianGrid strokeDasharray="2 2" stroke="#382A34" vertical={false} />
           <XAxis 
             dataKey="name" 
-            stroke="#64748B" 
+            stroke="#9E8B95" 
             fontSize={10} 
             fontFamily="monospace" 
             tickLine={false} 
@@ -140,9 +140,9 @@ export function ColumnCompletenessChart({ columnsData }: { columnsData: Record<s
             textAnchor="end"
             interval={0}
           />
-          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} domain={[0, 100]} />
+          <YAxis stroke="#9E8B95" fontSize={10} fontFamily="monospace" tickLine={false} domain={[0, 100]} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Completeness" fill="#38BDF8" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Completeness" fill="#C89D66" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -160,10 +160,10 @@ export function CategoryDistributionChart({ categories }: { categories: Array<{ 
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 15, right: 10, left: -20, bottom: 25 }}>
-          <CartesianGrid strokeDasharray="2 2" stroke="#2A3442" vertical={false} />
+          <CartesianGrid strokeDasharray="2 2" stroke="#382A34" vertical={false} />
           <XAxis 
             dataKey="name" 
-            stroke="#64748B" 
+            stroke="#9E8B95" 
             fontSize={10} 
             fontFamily="monospace" 
             tickLine={false} 
@@ -171,9 +171,9 @@ export function CategoryDistributionChart({ categories }: { categories: Array<{ 
             textAnchor="end"
             interval={0}
           />
-          <YAxis stroke="#64748B" fontSize={10} fontFamily="monospace" tickLine={false} />
+          <YAxis stroke="#9E8B95" fontSize={10} fontFamily="monospace" tickLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="Occurrences" fill="#E59500" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="Occurrences" fill="#E08D9D" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

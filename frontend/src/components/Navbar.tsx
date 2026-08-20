@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderGit2, Upload, Database, Sliders, Menu, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Upload, Database, Sliders, Menu, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
@@ -11,38 +11,38 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const links = [
-    { href: '/dashboard', label: 'Investigation Board', code: '01', icon: FolderGit2 },
-    { href: '/upload', label: 'Ingest Evidence', code: '02', icon: Upload },
-    { href: '/datasets', label: 'Case Archives', code: '03', icon: Database },
-    { href: '/settings', label: 'Bureau Config', code: '04', icon: Sliders },
+    { href: '/dashboard', label: 'Dashboard', code: '01', icon: LayoutDashboard },
+    { href: '/upload', label: 'Upload Data', code: '02', icon: Upload },
+    { href: '/datasets', label: 'Datasets', code: '03', icon: Database },
+    { href: '/settings', label: 'Settings', code: '04', icon: Sliders },
   ];
 
   return (
-    <nav className="fixed top-6 left-0 right-0 z-40 bg-ink-900/95 border-b border-ruling backdrop-blur-md px-4 sm:px-8 py-3 flex items-center justify-between transition-all">
-      {/* Brand & Forensic Tag */}
+    <nav className="fixed top-7 left-0 right-0 z-40 bg-[#141013]/90 border-b border-[#382A34] backdrop-blur-md px-4 sm:px-8 py-2.5 flex items-center justify-between transition-all">
+      {/* Brand & Logo */}
       <Link 
         href="/" 
-        className="flex items-center gap-3 text-paper-100 hover:opacity-90 transition-opacity" 
+        className="flex items-center gap-3 text-[#FAF5F6] hover:opacity-90 transition-opacity" 
         onClick={() => setMobileOpen(false)}
       >
-        <div className="w-8 h-8 rounded bg-ink-800 border border-ruling flex items-center justify-center text-evidence-amber font-mono font-bold text-sm shadow-sm">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C89D66] to-[#E08D9D] flex items-center justify-center text-[#141013] font-mono font-bold text-sm shadow-md shadow-[#C89D66]/20 border border-[#FAF5F6]/20">
           DD
         </div>
         <div className="flex flex-col">
-          <div className="font-display font-bold text-sm tracking-wide flex items-center gap-1.5 uppercase">
+          <div className="font-display font-bold text-sm tracking-tight flex items-center gap-1.5 uppercase text-[#FAF5F6]">
             <span>Data Detective</span>
-            <span className="text-[10px] font-mono font-bold bg-evidence-amber text-ink-950 px-1 py-0.2 rounded">
+            <span className="text-[10px] font-mono font-bold bg-[#E08D9D]/20 text-[#F7B7C4] px-1.5 py-0.2 rounded border border-[#E08D9D]/30">
               AI
             </span>
           </div>
-          <span className="text-[10px] font-mono text-paper-400 tracking-wider">
-            EVIDENCE & AUDIT LEDGER
+          <span className="text-[9px] font-mono text-[#D6C7C2] tracking-wider font-medium">
+            QUALITY & LAKEHOUSE PLATFORM
           </span>
         </div>
       </Link>
 
-      {/* Desktop Navigation Dossier Tabs */}
-      <div className="hidden md:flex items-center gap-1">
+      {/* Desktop Navigation Links */}
+      <div className="hidden md:flex items-center gap-1 bg-[#1F181D]/90 p-1 rounded-xl border border-[#382A34]">
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href || (link.href !== '/' && pathname.startsWith(link.href));
@@ -50,17 +50,17 @@ export default function Navbar() {
             <Link 
               key={link.href} 
               href={link.href} 
-              className={`relative px-3.5 py-1.5 rounded text-xs font-mono transition-all flex items-center gap-2 border ${
+              className={`relative px-3.5 py-1.5 rounded-lg text-xs font-mono transition-all flex items-center gap-2 ${
                 isActive 
-                  ? 'bg-ink-800 text-paper-100 border-ruling shadow-sm' 
-                  : 'text-paper-400 hover:text-paper-200 hover:bg-ink-850 border-transparent'
+                  ? 'bg-[#C89D66] text-[#141013] font-bold border border-[#C89D66] shadow-sm shadow-[#C89D66]/20' 
+                  : 'text-[#D6C7C2] hover:text-[#FAF5F6] hover:bg-[#2C2129]'
               }`}
             >
-              <span className="text-[10px] text-ink-500 font-bold">{link.code}</span>
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-evidence-amber' : 'text-paper-400'}`} />
+              <span className={`text-[10px] font-bold ${isActive ? 'text-[#141013]/70' : 'text-[#9E8B95]'}`}>{link.code}</span>
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#141013]' : 'text-[#E08D9D]'}`} />
               <span className="font-medium tracking-tight">{link.label}</span>
               {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-evidence-amber" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#141013]" />
               )}
             </Link>
           );
@@ -71,17 +71,18 @@ export default function Navbar() {
       <div className="hidden md:flex items-center gap-3">
         <Link 
           href="/upload" 
-          className="btn-primary text-xs"
+          className="btn-primary text-xs flex items-center gap-1.5"
         >
           <Upload className="w-3.5 h-3.5" />
-          <span>New Case Intake</span>
+          <span>Upload Dataset</span>
         </Link>
       </div>
 
       {/* Mobile Nav Toggle */}
       <button 
+        type="button"
         aria-label="Toggle navigation menu"
-        className="md:hidden text-paper-400 hover:text-paper-100 p-1.5 border border-ruling rounded bg-ink-850"
+        className="md:hidden text-[#D6C7C2] hover:text-white p-1.5 border border-[#382A34] rounded-lg bg-[#1F181D] cursor-pointer"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -94,7 +95,7 @@ export default function Navbar() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 right-0 bg-ink-950 border-b border-ruling flex flex-col p-5 gap-3 md:hidden z-40 shadow-xl font-mono"
+            className="absolute top-full left-0 right-0 bg-[#141013] border-b border-[#382A34] flex flex-col p-5 gap-2.5 md:hidden z-40 shadow-xl font-mono"
           >
             {links.map((link) => {
               const Icon = link.icon;
@@ -103,16 +104,16 @@ export default function Navbar() {
                 <Link 
                   key={link.href} 
                   href={link.href} 
-                  className={`flex items-center justify-between p-2.5 rounded text-xs border ${
+                  className={`flex items-center justify-between p-2.5 rounded-lg text-xs border ${
                     isActive 
-                      ? 'bg-ink-800 text-paper-100 border-ruling' 
-                      : 'text-paper-400 hover:bg-ink-850 border-transparent'
+                      ? 'bg-[#C89D66] text-[#141013] border-[#C89D66] font-bold' 
+                      : 'text-[#D6C7C2] hover:bg-[#1F181D] border-transparent'
                   }`}
                   onClick={() => setMobileOpen(false)}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="text-ink-500 font-bold">{link.code}</span>
-                    <Icon className="w-4 h-4 text-evidence-amber" />
+                    <span className="text-[#9E8B95] font-bold">{link.code}</span>
+                    <Icon className="w-4 h-4 text-[#E08D9D]" />
                     <span>{link.label}</span>
                   </div>
                   {isActive && <span className="text-[10px] stamp-tag stamp-tag-amber">ACTIVE</span>}
@@ -125,7 +126,7 @@ export default function Navbar() {
               onClick={() => setMobileOpen(false)}
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>New Case Intake</span>
+              <span>Upload Dataset</span>
             </Link>
           </motion.div>
         )}

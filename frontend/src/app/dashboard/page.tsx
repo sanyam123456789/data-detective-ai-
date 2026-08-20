@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { 
@@ -8,15 +9,17 @@ import {
   CheckCircle2, 
   HardDrive, 
   ArrowUpRight, 
-  TrendingUp, 
-  AlertTriangle, 
   RefreshCw, 
   Eye, 
   Layers, 
   ShieldAlert,
   FileSpreadsheet,
-  FileCode,
-  FolderOpen
+  FolderOpen,
+  Brain,
+  Terminal,
+  Cloud,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -43,6 +46,11 @@ interface Dataset {
 
 export default function Dashboard() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const { data: datasets, isLoading, refetch, isFetching } = useQuery<Dataset[]>({
     queryKey: ['datasets'],
@@ -65,14 +73,10 @@ export default function Dashboard() {
   };
 
   const formatDate = (dateVal: string) => {
+    if (!isMounted || !dateVal) return '-';
     try {
-      if (!dateVal) return '-';
-      return new Date(dateVal).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const d = new Date(dateVal);
+      return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
       return dateVal;
     }
@@ -100,47 +104,47 @@ export default function Dashboard() {
 
   const forensicKpis = [
     {
-      label: 'AVERAGE INTEGRITY VERDICT',
+      label: 'DATA QUALITY HEALTH',
       value: avgHealthScore,
-      meta: 'Across all verified profiles',
-      stamp: 'HEALTH',
+      meta: 'Across all profiled tables',
+      stamp: 'QUALITY',
       stampType: 'stamp-tag-emerald',
       icon: CheckCircle2,
     },
     {
       label: 'TOTAL ROWS AUDITED',
       value: formatNumberSafe(totalRows),
-      meta: 'Ingested data coordinates',
+      meta: 'Total ingested records',
       stamp: 'RECORDS',
       stampType: 'stamp-tag-cyan',
       icon: Activity,
     },
     {
-      label: 'SCHEMAS DISSECTED',
+      label: 'COLUMNS PROFILED',
       value: formatNumberSafe(totalColumns),
-      meta: 'Distinct column profiles',
+      meta: 'Distinct schema fields',
       stamp: 'SCHEMA',
       stampType: 'stamp-tag-muted',
       icon: Database,
     },
     {
-      label: 'MEMORY ALLOCATION',
+      label: 'MEMORY FOOTPRINT',
       value: formatBytes(totalMemoryBytes),
-      meta: 'Active RAM footprint',
+      meta: 'Active RAM partition',
       stamp: 'FOOTPRINT',
       stampType: 'stamp-tag-muted',
       icon: HardDrive,
     },
     {
-      label: 'NULL VALUES FLAGGED',
+      label: 'MISSING NULL CELLS',
       value: formatNumberSafe(totalMissing),
-      meta: 'Missing cell anomalies',
-      stamp: 'MISSING',
+      meta: 'Null values flagged',
+      stamp: 'NULLS',
       stampType: 'stamp-tag-amber',
       icon: Layers,
     },
     {
-      label: 'DUPLICATE ENTRIES',
+      label: 'DUPLICATE ROWS',
       value: formatNumberSafe(totalDuplicates),
       meta: 'Identical row signatures',
       stamp: 'DUPLICATES',
@@ -150,10 +154,55 @@ export default function Dashboard() {
     {
       label: 'STATISTICAL OUTLIERS',
       value: formatNumberSafe(totalOutliers),
-      meta: 'IQR boundary infractions',
-      stamp: 'ANOMALY',
+      meta: 'IQR & Z-Score boundary violations',
+      stamp: 'OUTLIERS',
       stampType: 'stamp-tag-crimson',
       icon: ShieldAlert,
+    },
+  ];
+
+  const featureGuides = [
+    {
+      title: '01. Automated Data Profiler',
+      desc: 'Upload CSV or Excel. Immediately computes min/max/mean, null rates, and detects data types with zero configuration.',
+      badge: 'PROFILER',
+      icon: Database,
+      color: 'text-[#C89D66]',
+    },
+    {
+      title: '02. Data Quality & Detective Engine',
+      desc: 'Audits Completeness, Validity, Uniqueness, and Consistency with IQR (1.5x IQR) and Z-Score outlier detection.',
+      badge: 'QUALITY ENGINE',
+      icon: ShieldAlert,
+      color: 'text-[#E08D9D]',
+    },
+    {
+      title: '03. AI Intelligence & Recommendations',
+      desc: 'Gemini 2.0 synthesizes executive summaries, data quality risk assessments, and interactive natural-language chat.',
+      badge: 'AI COPILOT',
+      icon: Brain,
+      color: 'text-[#D4A373]',
+    },
+    {
+      title: '04. SQL & PySpark Code Studio',
+      desc: 'Generates production-grade data cleansing queries (DuckDB/Postgres) and distributed PySpark ETL pipeline scripts.',
+      badge: 'CODE STUDIO',
+      icon: Terminal,
+      color: 'text-[#5FA788]',
+    },
+    {
+      title: '05. AWS S3 & Athena Lakehouse',
+      desc: 'Stores datasets in S3, registers schemas in AWS Glue Data Catalog, and runs real-time Amazon Athena SQL queries.',
+      badge: 'LAKEHOUSE',
+      icon: Cloud,
+      color: 'text-[#E08D9D]',
+    },
+    {
+      title: '06. Autonomous AI Analyst',
+      desc: 'Ask business questions in plain English. AI writes & executes Athena SQL, fetches results, and synthesizes root-cause insights.',
+      badge: 'AI ANALYST',
+      icon: Sparkles,
+      color: 'text-[#C89D66]',
     },
   ];
 
@@ -161,45 +210,46 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Investigation Board Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-ruling pb-6">
+      {/* Dashboard Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#382A34] pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="stamp-tag stamp-tag-amber">FORENSIC LEDGER</span>
-            <span className="text-xs font-mono text-paper-400">BOARD REF: #INV-CENTRAL-01</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="stamp-tag stamp-tag-amber">SYSTEM OVERVIEW</span>
+            <span className="text-xs font-mono text-[#D6C7C2]">STATUS: LIVE TELEMETRY</span>
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-paper-50">
-            Investigation Board
+          <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-[#FAF5F6]">
+            Data Quality & Lakehouse Dashboard
           </h1>
-          <p className="text-xs font-mono text-paper-400 mt-1">
-            REAL-TIME METRICS & ACTIVE EVIDENCE DOSSIERS
+          <p className="text-xs font-mono text-[#D6C7C2] mt-1">
+            REAL-TIME DATASET METRICS, QUALITY HEALTH GRADES, AND ACTIVE LAKEHOUSE CATALOGS
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
+            type="button"
             id="refresh-dashboard-btn"
             onClick={() => refetch()}
             disabled={isLoading || isFetching}
-            className="btn-secondary text-xs"
-            title="Refresh Forensic Registry"
+            className="btn-secondary text-xs flex items-center gap-1.5 cursor-pointer"
+            title="Refresh Registry"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            <span>Refresh Ledger</span>
+            <span>Refresh</span>
           </button>
           
           <Link 
             id="upload-dataset-dashboard-btn"
             href="/upload"
-            className="btn-primary text-xs"
+            className="btn-primary text-xs flex items-center gap-1.5"
           >
-            <span>Intake New Case</span>
+            <span>Upload Dataset</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
-      {/* Forensic KPI Metric Tiles */}
+      {/* KPI Metric Cards */}
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {forensicKpis.map((kpi) => {
           const Icon = kpi.icon;
@@ -208,8 +258,8 @@ export default function Dashboard() {
               key={kpi.label}
               className="ledger-card p-4 flex flex-col justify-between gap-3"
             >
-              <div className="flex items-start justify-between gap-2 border-b border-ruling pb-2">
-                <span className="text-[10px] font-mono text-paper-400 font-bold uppercase tracking-wider truncate">
+              <div className="flex items-start justify-between gap-2 border-b border-[#382A34] pb-2">
+                <span className="text-[10px] font-mono text-[#D6C7C2] font-bold uppercase tracking-wider truncate">
                   {kpi.label}
                 </span>
                 <span className={`stamp-tag ${kpi.stampType} text-[9px]`}>
@@ -218,10 +268,10 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <div className="text-2xl font-mono font-bold text-paper-50">
+                <div className="text-2xl font-mono font-bold text-[#FAF5F6]">
                   {kpi.value}
                 </div>
-                <div className="text-[10px] font-mono text-paper-400 mt-0.5">
+                <div className="text-[10px] font-mono text-[#D6C7C2] mt-0.5">
                   {kpi.meta}
                 </div>
               </div>
@@ -230,45 +280,45 @@ export default function Dashboard() {
         })}
       </section>
 
-      {/* Main Ledger Table & Forensic Audit Feed */}
+      {/* Main Table + Feature Quick Guide Column */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Table: Active Evidence Dossiers */}
-        <div className="lg:col-span-2 ledger-card">
+        {/* Table: Active Datasets */}
+        <div className="lg:col-span-2 ledger-card overflow-hidden">
           <div className="ledger-header flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <FolderOpen className="w-3.5 h-3.5 text-evidence-amber" />
-              <span>Active Case Dossiers ({totalDatasets})</span>
+              <FolderOpen className="w-3.5 h-3.5 text-[#C89D66]" />
+              <span className="text-[#FAF5F6] font-bold">Active Datasets ({totalDatasets})</span>
             </span>
-            <span className="text-[10px] text-paper-400">CHRONOLOGICAL AUDIT</span>
+            <span className="text-[10px] text-[#D6C7C2] font-normal">CHRONOLOGICAL LIST</span>
           </div>
 
           <div className="overflow-x-auto w-full">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12 gap-2 text-xs font-mono text-paper-400">
-                <RefreshCw className="w-4 h-4 animate-spin text-evidence-amber" />
-                <span>Extracting case files from vault...</span>
+              <div className="flex items-center justify-center py-12 gap-2 text-xs font-mono text-[#D6C7C2]">
+                <RefreshCw className="w-4 h-4 animate-spin text-[#C89D66]" />
+                <span>Loading datasets from catalog...</span>
               </div>
             ) : recentDatasetsList.length === 0 ? (
               <div className="p-8 text-center space-y-3 font-mono">
-                <div className="w-10 h-10 rounded bg-ink-800 border border-ruling mx-auto flex items-center justify-center text-paper-400">
+                <div className="w-10 h-10 rounded-xl bg-[#261E24] border border-[#382A34] mx-auto flex items-center justify-center text-[#D6C7C2]">
                   <Database className="w-5 h-5" />
                 </div>
-                <p className="text-xs text-paper-300 font-bold">No active cases registered in ledger</p>
-                <p className="text-[11px] text-paper-400 max-w-xs mx-auto">
-                  Submit a dataset to initialize automated profiling and anomaly detection.
+                <p className="text-xs text-[#FAF5F6] font-bold">No datasets uploaded yet</p>
+                <p className="text-[11px] text-[#D6C7C2] max-w-xs mx-auto">
+                  Upload a CSV or Excel file to begin automated profiling, quality audits, and AI analysis.
                 </p>
                 <Link href="/upload" className="btn-primary text-xs inline-flex mt-2">
-                  Open Case File
+                  Upload First Dataset
                 </Link>
               </div>
             ) : (
               <table className="forensic-table">
                 <thead>
                   <tr>
-                    <th>Case Docket / File</th>
-                    <th>Coordinates</th>
-                    <th>Integrity Score</th>
-                    <th>Custody</th>
+                    <th>Dataset Name</th>
+                    <th>Rows & Columns</th>
+                    <th>Quality Score</th>
+                    <th>Storage</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -293,18 +343,18 @@ export default function Dashboard() {
                     return (
                       <tr key={row.id}>
                         <td>
-                          <div className="font-mono text-xs font-bold text-paper-100 truncate max-w-[200px]" title={row.original_filename}>
+                          <div className="font-mono text-xs font-bold text-[#FAF5F6] truncate max-w-[200px]" title={row.original_filename}>
                             {row.original_filename}
                           </div>
-                          <div className="text-[10px] font-mono text-paper-400 mt-0.5">
-                            TAG: #{row.id.slice(0, 8)} • {formatDate(row.created_at)}
+                          <div className="text-[10px] font-mono text-[#D6C7C2] mt-0.5">
+                            ID: #{row.id.slice(0, 8)} • {formatDate(row.created_at)}
                           </div>
                         </td>
-                        <td className="font-mono text-xs text-paper-300">
+                        <td className="font-mono text-xs text-[#D6C7C2]">
                           {row.total_rows !== null && row.total_rows !== undefined && row.total_columns !== null && row.total_columns !== undefined ? (
-                            `${formatNumberSafe(row.total_rows)}R × ${formatNumberSafe(row.total_columns)}C`
+                            `${formatNumberSafe(row.total_rows)} rows × ${formatNumberSafe(row.total_columns)} cols`
                           ) : (
-                            <span className="text-paper-400">-</span>
+                            <span className="text-[#9E8B95]">-</span>
                           )}
                         </td>
                         <td>
@@ -313,17 +363,17 @@ export default function Dashboard() {
                           </span>
                         </td>
                         <td>
-                          <span className="font-mono text-[10px] text-paper-400 bg-ink-950 px-2 py-0.5 rounded border border-ruling">
+                          <span className="font-mono text-[10px] text-[#F7B7C4] bg-[#E08D9D]/15 px-2 py-0.5 rounded border border-[#E08D9D]/30">
                             {row.storage_type}
                           </span>
                         </td>
                         <td>
                           <Link 
                             href={`/datasets/${row.id}`}
-                            className="btn-secondary text-[11px] py-1 px-2.5"
-                            title="Inspect Case Dossier"
+                            className="btn-secondary text-[11px] py-1 px-2.5 flex items-center gap-1.5 cursor-pointer"
+                            title="Inspect Dataset Details"
                           >
-                            <Eye className="w-3.5 h-3.5 text-evidence-amber" />
+                            <Eye className="w-3.5 h-3.5 text-[#C89D66]" />
                             <span>Inspect</span>
                           </Link>
                         </td>
@@ -336,46 +386,34 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Forensic Intelligence Bulletins */}
+        {/* Feature Navigation & Tool Guide Column */}
         <div className="ledger-card space-y-4">
           <div className="ledger-header flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <ShieldAlert className="w-3.5 h-3.5 text-evidence-crimson" />
-              <span>Forensic Advisories</span>
+            <span className="flex items-center gap-2 text-[#FAF5F6] font-bold">
+              <HelpCircle className="w-3.5 h-3.5 text-[#C89D66]" />
+              <span>Platform Feature Guide</span>
             </span>
-            <span className="stamp-tag stamp-tag-amber text-[9px]">LIVE INTEL</span>
+            <span className="stamp-tag stamp-tag-amber text-[9px]">TOOLS DIRECTORY</span>
           </div>
 
-          <div className="p-4 space-y-3 font-mono text-xs">
-            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] text-evidence-amber font-bold">
-                <span>[ADVISORY #01] STATISTICAL QUARANTINE</span>
-                <span>IQR LEVEL 1.5</span>
-              </div>
-              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
-                Outliers are flagged when numeric distributions exceed 1.5× Interquartile Range thresholds. Review anomaly registers inside each dossier.
-              </p>
-            </div>
-
-            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] text-evidence-cyan font-bold">
-                <span>[ADVISORY #02] CODE STUDIO READY</span>
-                <span>SQL / PYSPARK</span>
-              </div>
-              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
-                Automated pipeline scripts can be exported directly from the Code Studio tab once schema integrity audits are concluded.
-              </p>
-            </div>
-
-            <div className="p-3 bg-ink-850 rounded border border-ruling space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] text-evidence-emerald font-bold">
-                <span>[ADVISORY #03] CHAIN OF CUSTODY</span>
-                <span>SHA-256</span>
-              </div>
-              <p className="text-[11px] text-paper-300 font-body leading-relaxed">
-                Uploaded files are stored immutably. Local or AWS S3 lakehouse partitions maintain full audit traceability.
-              </p>
-            </div>
+          <div className="p-4 space-y-3 font-mono text-xs max-h-[480px] overflow-y-auto">
+            {featureGuides.map((guide, i) => {
+              const Icon = guide.icon;
+              return (
+                <div key={i} className="p-3 bg-[#181216] rounded-lg border border-[#382A34] space-y-1.5 hover:border-[#4E3B49] transition-colors">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
+                    <span className="flex items-center gap-1.5 text-[#FAF5F6]">
+                      <Icon className={`w-3.5 h-3.5 ${guide.color}`} />
+                      <span>{guide.title}</span>
+                    </span>
+                    <span className="stamp-tag stamp-tag-muted text-[8px]">{guide.badge}</span>
+                  </div>
+                  <p className="text-[11px] text-[#D6C7C2] font-sans leading-relaxed">
+                    {guide.desc}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -1828,36 +1828,35 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
   const selectedCatData = selectedCatCol ? pData.columns[selectedCatCol] : null;
 
   const mainTabs = [
-    { id: 'overview', label: '01. Dossier Summary' },
-    { id: 'columns', label: '02. Schema Dissection' },
-    { id: 'numeric', label: '03. Numeric Ledger' },
-    { id: 'categorical', label: '04. Categorical Ledger' },
-    { id: 'charts', label: '05. Forensic Charts' },
-    { id: 'ai', label: '06. AI Intelligence' },
+    { id: 'overview', label: '01. Overview' },
+    { id: 'columns', label: '02. Columns & Schema' },
+    { id: 'numeric', label: '03. Statistics' },
+    { id: 'categorical', label: '04. Categories' },
+    { id: 'charts', label: '05. Charts' },
+    { id: 'ai', label: '06. AI Insights' },
     { id: 'code', label: '07. Code Studio' },
-    { id: 'pipeline', label: '08. Lakehouse' },
+    { id: 'pipeline', label: '08. AWS Lakehouse' },
     { id: 'quality_audit', label: '09. Quality Engine' },
     { id: 'analyst', label: '10. AI Analyst' },
   ] as const;
 
-
-
   const aiSubTabs: { key: typeof activeAITab; label: string; icon: React.ComponentType<any> }[] = [
     { key: 'summary', label: 'Executive Summary', icon: Brain },
     { key: 'quality', label: 'Quality Defects', icon: AlertCircle },
-    { key: 'recommendations', label: 'Playbook', icon: Wrench },
-    { key: 'column', label: 'Column Ledger', icon: BarChart3 },
-    { key: 'chat', label: 'Investigator Terminal', icon: MessageSquare },
+    { key: 'recommendations', label: 'Remediation Playbook', icon: Wrench },
+    { key: 'column', label: 'Column Explainer', icon: BarChart3 },
+    { key: 'chat', label: 'AI Chat Terminal', icon: MessageSquare },
   ];
 
   return (
     <div className="space-y-8 py-2">
       {/* Dossier Header */}
       <div className="space-y-4">
-        <Link href="/datasets" className="inline-flex items-center gap-2 text-xs font-mono text-paper-400 hover:text-paper-100 transition-colors">
+        <Link href="/datasets" className="inline-flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors">
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>BACK TO CASE ARCHIVES</span>
+          <span>BACK TO DATASETS</span>
         </Link>
+
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ruling pb-4">
           <div className="flex items-center gap-3.5">
@@ -1958,21 +1957,25 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
         {/* Tabbed Investigation Panels */}
         <section className="lg:col-span-2 ledger-card p-5 flex flex-col justify-between space-y-6">
           {/* Dossier Tabs Navigation */}
-          <div className="flex border-b border-ruling pb-2 items-center gap-1 overflow-x-auto font-mono text-xs">
+          <div className="flex bg-[#161115] p-1.5 rounded-xl border border-[#382A34] items-center gap-1.5 overflow-x-auto font-mono text-xs shadow-inner">
+
             {mainTabs.map((tab) => (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3 py-1.5 rounded transition-all shrink-0 border ${
+                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 text-xs font-semibold cursor-pointer ${
                   activeTab === tab.id 
-                    ? 'bg-ink-800 text-paper-100 border-ruling font-bold' 
-                    : 'text-paper-400 hover:text-paper-200 border-transparent hover:bg-ink-850'
+                    ? 'bg-[#C89D66] text-[#141013] font-bold shadow-md shadow-[#C89D66]/20' 
+                    : 'text-[#D6C7C2] hover:text-[#FAF5F6] hover:bg-[#261E24]'
                 }`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
+
+
 
           <div className="flex-grow min-h-[360px]">
             {/* TAB: Dossier Summary */}
@@ -2162,22 +2165,25 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
             {/* TAB: AI Intelligence */}
             {activeTab === 'ai' && (
               <div className="space-y-5 font-mono">
-                <div className="flex gap-1.5 border-b border-ruling pb-2 overflow-x-auto">
+                <div className="flex gap-1.5 p-1.5 bg-[#161115] rounded-xl border border-[#382A34] overflow-x-auto">
                   {aiSubTabs.map(({ key, label, icon: Icon }) => (
                     <button
                       key={key}
+                      type="button"
                       onClick={() => setActiveAITab(key)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         activeAITab === key 
-                          ? 'bg-ink-800 text-paper-100 border-ruling font-bold' 
-                          : 'text-paper-400 border-transparent hover:bg-ink-850'
+                          ? 'bg-[#E08D9D] text-[#141013] font-bold shadow-md shadow-[#E08D9D]/20' 
+                          : 'text-[#D6C7C2] hover:text-[#FAF5F6] hover:bg-[#261E24]'
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5 text-evidence-amber" />
+                      <Icon className={`w-3.5 h-3.5 ${activeAITab === key ? 'text-[#141013]' : 'text-[#E08D9D]'}`} />
                       <span>{label}</span>
                     </button>
                   ))}
                 </div>
+
+
 
                 <div>
                   {activeAITab === 'summary' && <AIOverviewSection datasetId={id} apiUrl={apiUrl} />}
