@@ -2,19 +2,20 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dependencies first for caching
+# Copy package dependencies and install
 COPY package*.json ./
 RUN npm install
 
-# Copy source code
+# Copy frontend source code
 COPY . .
 
-# Expose port for Next.js dev server
+# Expose Next.js server port
 EXPOSE 3000
 
-# Set Next.js env variables
+# Set build/runtime environment variables
 ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
 
-# Run development mode
+# Run Next.js dev server
 CMD ["npm", "run", "dev"]
+

@@ -1,47 +1,54 @@
-version: '3.8'
-
 services:
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: data-detective-backend
     ports:
       - "8000:8000"
     env_file:
-      - .env
-    volumes:
-      - ./backend:/app
-      - backend_uploads:/app/uploads
-      - /app/node_modules
+      - ./backend/.env
     environment:
       - PORT=8000
-      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - LOCAL_STORAGE_DIR=${LOCAL_STORAGE_DIR:-./uploads}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-    restart: always
+      - ENVIRONMENT=development
+      - STORAGE_PROVIDER=s3
+      - AWS_REGION=ap-south-1
+      - AWS_PROFILE=data-detective
+      - S3_BUCKET_NAME=data-detective-ai-2026
+      - ATHENA_DATABASE=data_detective
+      - ATHENA_WORKGROUP=data-detective
+    volumes:
+      - ./backend:/app
+      - ~/.aws:/root/.aws:ro
+      - backend_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: data-detective-frontend
     ports:
       - "3000:3000"
-    env_file:
-      - .env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     depends_on:
-      - backend
-    restart: always
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   backend_uploads:
