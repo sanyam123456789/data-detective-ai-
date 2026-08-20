@@ -1129,6 +1129,47 @@ function DataPipelineSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
     },
   });
 
+  const [querySql, setQuerySql] = useState('');
+  const [queryResult, setQueryResult] = useState<AthenaQueryResponse | null>(null);
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [queryError, setQueryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pipeline?.catalog_table && !querySql) {
+      const tableName = pipeline.athena_query_table || `"${pipeline.catalog_database || 'data_detective'}"."${pipeline.catalog_table}"`;
+      setQuerySql(`SELECT * FROM ${tableName} LIMIT 10;`);
+    }
+  }, [pipeline, querySql]);
+
+  const handleRunAthenaQuery = async () => {
+    if (!querySql.trim() || queryLoading) return;
+    setQueryLoading(true);
+    setQueryError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sql: querySql.trim(),
+          database: pipeline?.catalog_database || 'data_detective',
+          max_rows: 100,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Athena query execution failed');
+      }
+
+      const data: AthenaQueryResponse = await res.json();
+      setQueryResult(data);
+    } catch (e: any) {
+      setQueryError(e.message || 'Failed to execute Athena query');
+    } finally {
+      setQueryLoading(false);
+    }
+  };
+
   const status = pipeline?.pipeline_status || 'LOCAL';
 
   return (
@@ -1165,22 +1206,118 @@ function DataPipelineSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
       )}
 
       {pipeline?.aws_configured && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="ledger-card p-4 space-y-2">
-            <span className="text-[10px] font-bold text-paper-400 uppercase block">S3 Bucket Custody</span>
-            <p className="text-xs text-paper-100 font-bold">{pipeline.storage_provider}</p>
-            <p className="text-[11px] text-paper-400 truncate">RAW: {pipeline.raw_s3_key || 'N/A'}</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="ledger-card p-4 space-y-2">
+              <span className="text-[10px] font-bold text-paper-400 uppercase block">S3 Bucket Custody</span>
+              <p className="text-xs text-paper-100 font-bold">{pipeline.storage_provider}</p>
+              <p className="text-[11px] text-paper-400 truncate">RAW: {pipeline.raw_s3_key || 'N/A'}</p>
+              <p className="text-[11px] text-paper-400 truncate">CURATED: {pipeline.curated_s3_key || 'N/A'}</p>
+            </div>
+            <div className="ledger-card p-4 space-y-2">
+              <span className="text-[10px] font-bold text-paper-400 uppercase block">Glue Data Catalog</span>
+              <p className="text-xs text-paper-100 font-bold">{pipeline.catalog_database || 'default'}</p>
+              <p className="text-[11px] text-paper-400">TABLE: {pipeline.catalog_table || 'unregistered'}</p>
+              <p className="text-[11px] text-evidence-emerald">STATUS: {pipeline.pipeline_status}</p>
+            </div>
           </div>
-          <div className="ledger-card p-4 space-y-2">
-            <span className="text-[10px] font-bold text-paper-400 uppercase block">Glue Data Catalog</span>
-            <p className="text-xs text-paper-100 font-bold">{pipeline.catalog_database || 'default'}</p>
-            <p className="text-[11px] text-paper-400">TABLE: {pipeline.catalog_table || 'unregistered'}</p>
+
+          {/* Interactive Athena Query Console */}
+          <div className="ledger-card p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-ruling pb-2">
+              <h4 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+                <Terminal className="w-3.5 h-3.5 text-evidence-amber" />
+                <span>Live Amazon Athena SQL Query Console</span>
+              </h4>
+              <span className="stamp-tag stamp-tag-cyan text-[9px]">AWS ATHENA WORKGROUP: DATA-DETECTIVE</span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <textarea
+                  value={querySql}
+                  onChange={(e) => setQuerySql(e.target.value)}
+                  placeholder="Enter ANSI SELECT query..."
+                  rows={3}
+                  disabled={queryLoading || !pipeline.catalog_table}
+                  className="flex-1 bg-ink-950 border border-ruling rounded p-3 text-xs text-paper-100 focus:border-evidence-amber font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-paper-400">
+                  {pipeline.catalog_table 
+                    ? `Registered Catalog Table: ${pipeline.catalog_database}.${pipeline.catalog_table}`
+                    : 'Pipeline must complete (READY) to enable Athena queries.'}
+                </p>
+                <button
+                  onClick={handleRunAthenaQuery}
+                  disabled={queryLoading || !pipeline.catalog_table || !querySql.trim()}
+                  className="btn-primary text-xs"
+                >
+                  {queryLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                  <span>{queryLoading ? 'Running Athena Query...' : 'Execute Query'}</span>
+                </button>
+              </div>
+            </div>
+
+            {queryError && (
+              <div className="p-3 bg-ink-950 border border-evidence-crimson/40 text-evidence-crimson text-xs rounded">
+                <span className="font-bold uppercase block mb-1">Athena Query Failed:</span>
+                <p>{queryError}</p>
+              </div>
+            )}
+
+            {queryResult && (
+              <div className="space-y-3 pt-2">
+                {/* Telemetry Bar */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-2 bg-ink-950 rounded border border-ruling">
+                    <span className="text-[9px] text-paper-400 uppercase block">Rows Returned</span>
+                    <span className="text-sm font-bold text-paper-100">{queryResult.row_count}</span>
+                  </div>
+                  <div className="p-2 bg-ink-950 rounded border border-ruling">
+                    <span className="text-[9px] text-paper-400 uppercase block">Execution Time</span>
+                    <span className="text-sm font-bold text-paper-100">{queryResult.execution_time_ms} ms</span>
+                  </div>
+                  <div className="p-2 bg-ink-950 rounded border border-ruling">
+                    <span className="text-[9px] text-paper-400 uppercase block">Data Scanned</span>
+                    <span className="text-sm font-bold text-evidence-amber">{queryResult.data_scanned_mb} MB</span>
+                  </div>
+                </div>
+
+                {/* Results Table */}
+                <div className="overflow-x-auto max-h-[300px] border border-ruling rounded">
+                  <table className="forensic-table">
+                    <thead>
+                      <tr>
+                        {queryResult.columns.map((col, idx) => (
+                          <th key={idx}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {queryResult.rows.map((row, rIdx) => (
+                        <tr key={rIdx}>
+                          {row.map((cell, cIdx) => (
+                            <td key={cIdx} className="text-paper-200">
+                              {cell === null ? <span className="text-paper-500 italic">NULL</span> : cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+
 
 // ─── Main Dataset Details Page ────────────────────────────────────────────────
 

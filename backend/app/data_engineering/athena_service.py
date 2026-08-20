@@ -78,20 +78,34 @@ def _start_query(
     """Submits query to Athena and returns execution_id."""
     client = get_athena_client()
     logger.info(f"[Athena] Starting query on database='{database}', workgroup='{workgroup}'")
+
+    start_kwargs: Dict[str, Any] = {
+        "QueryString": sql,
+        "QueryExecutionContext": {"Database": database},
+        "WorkGroup": workgroup,
+    }
+    if output_location:
+        start_kwargs["ResultConfiguration"] = {"OutputLocation": output_location}
+
     try:
-        response = client.start_query_execution(
-            QueryString=sql,
-            QueryExecutionContext={"Database": database},
-            WorkGroup=workgroup,
-            ResultConfiguration={"OutputLocation": output_location},
-        )
+        try:
+            response = client.start_query_execution(**start_kwargs)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "InvalidRequestException" and "ResultConfiguration" in start_kwargs:
+                logger.info("[Athena] Retrying query without ResultConfiguration (using WorkGroup managed location)...")
+                del start_kwargs["ResultConfiguration"]
+                response = client.start_query_execution(**start_kwargs)
+            else:
+                raise e
+
         execution_id = response["QueryExecutionId"]
         logger.info(f"[Athena] Query submitted: execution_id={execution_id}")
         return execution_id
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "")
         error_msg = e.response.get("Error", {}).get("Message", "")
-        logger.error(f"[Athena] start_query_execution failed: {error_code}")
+        logger.error(f"[Athena] start_query_execution failed: {error_code}: {error_msg}")
         if "data scan limit" in error_msg.lower() or "bytes scanned" in error_msg.lower():
             raise AthenaQueryException(
                 "Query rejected: it would exceed the 100 MB data scanned workgroup limit. "
@@ -99,7 +113,8 @@ def _start_query(
             )
         if error_code == "AccessDeniedException":
             raise AthenaException("Athena access denied. Check IAM athena:StartQueryExecution permission.")
-        raise AthenaException(f"Failed to start Athena query: {error_code}")
+        raise AthenaException(f"Failed to start Athena query: {error_code} - {error_msg}")
+
 
 
 def _poll_query(execution_id: str, timeout_seconds: int) -> Dict[str, Any]:
