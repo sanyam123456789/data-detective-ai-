@@ -116,3 +116,26 @@ class AIInsightCacheResponse(BaseModel):
 class AIAvailabilityStatus(BaseModel):
     available: bool
     message: str
+
+
+# ─────────────────────────────────────────────────
+#  Feature 6 — Phase 4: AI Analyst & Root Cause Engine
+# ─────────────────────────────────────────────────
+
+class AIAnalystRequest(BaseModel):
+    question: str = Field(description="Natural language data question or investigation prompt")
+    max_rows: int = Field(default=100, ge=1, le=1000, description="Max rows to return")
+
+
+class AIAnalystResponse(BaseModel):
+    question: str
+    generated_sql: str
+    execution_time_ms: int
+    data_scanned_mb: float
+    columns: List[str]
+    rows: List[List[Optional[str]]]
+    row_count: int
+    executive_insight: str = Field(description="High-level business takeaways synthesized from raw query results")
+    key_findings: List[str] = Field(description="Bullet points highlighting trends or anomalies")
+    root_cause_explanation: str = Field(description="Root cause or structural explanation of findings")
+

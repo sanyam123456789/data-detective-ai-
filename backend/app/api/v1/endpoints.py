@@ -43,8 +43,12 @@ from app.ai.schemas import (
     AIColumnRequest,
     AIChatRequest,
     AIChatResponse,
+    AIAnalystRequest,
+    AIAnalystResponse,
 )
 from app.ai.service import AIService
+from app.ai.analyst_service import AIAnalystService
+
 
 # Phase 2C — AI Data Engineering Code Generator
 from app.code_generation.schemas import (
@@ -987,3 +991,40 @@ async def generate_pyspark(
         profile_data=profile_data,
         instruction=instruction
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Phase 4 — Advanced AI Analyst & Root Cause Engine Endpoint
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/datasets/{dataset_id}/ai/analyst", response_model=AIAnalystResponse)
+async def ai_analyst_investigate(
+    dataset_id: str,
+    request: AIAnalystRequest,
+    db: Session = Depends(get_db)
+) -> AIAnalystResponse:
+    """
+    Phase 4 — Autonomous AI Data Analyst & Root-Cause Investigation Endpoint.
+    Executes: NL Question -> Schema Context -> Athena SQL -> Live Query -> AI Root Cause Analysis.
+    """
+    profile_data = _get_profile_data_or_404(dataset_id, db)
+    dataset = DatasetRepository.get_by_id(db, dataset_id)
+
+    question = request.question.strip() if request.question else ""
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question cannot be empty."
+        )
+
+    database_name = dataset.catalog_database if dataset and dataset.catalog_database else (settings.ATHENA_DATABASE or "data_detective")
+    table_name = dataset.catalog_table if dataset and dataset.catalog_table else f"dataset_{dataset_id[:12].replace('-', '_')}"
+
+    return AIAnalystService.investigate(
+        question=question,
+        table_name=table_name,
+        database_name=database_name,
+        profile_data=profile_data,
+        max_rows=request.max_rows,
+    )
+

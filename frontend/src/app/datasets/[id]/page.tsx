@@ -206,6 +206,22 @@ interface QualityAuditFullResponse {
   audited_at: string;
 }
 
+// ─── Phase 4 AI Analyst Types ─────────────────────────────────────────────────
+
+interface AIAnalystFullResponse {
+  question: string;
+  generated_sql: string;
+  execution_time_ms: number;
+  data_scanned_mb: number;
+  columns: string[];
+  rows: (string | null)[][];
+  row_count: number;
+  executive_insight: string;
+  key_findings: string[];
+  root_cause_explanation: string;
+}
+
+
 
 // ─── Phase 2C Response Types ──────────────────────────────────────────────────
 
@@ -1332,6 +1348,216 @@ function QualityAuditSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
   );
 }
 
+// ─── Phase 4: AI Analyst & Root Cause Workspace Section ─────────────────────
+
+const ANALYST_PRESET_PROMPTS = [
+  "Identify top 10 records by primary numeric metric",
+  "Summarize key trends and data distribution highlights",
+  "Find potential anomalies or unexpected category spikes",
+  "Calculate aggregate summaries across table dimensions",
+];
+
+function AIAnalystSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
+  const [question, setQuestion] = useState('');
+  const [result, setResult] = useState<AIAnalystFullResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleInvestigate = async (promptOverride?: string) => {
+    const queryText = (promptOverride || question).trim();
+    if (!queryText || isLoading) return;
+
+    if (promptOverride) setQuestion(promptOverride);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/ai/analyst`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: queryText, max_rows: 100 }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'AI Analyst investigation failed.');
+      }
+
+      const data: AIAnalystFullResponse = await res.json();
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message || 'AI Analyst service is temporarily unavailable.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopySql = () => {
+    if (!result?.generated_sql) return;
+    navigator.clipboard.writeText(result.generated_sql);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6 font-mono">
+      <div className="flex items-center justify-between border-b border-ruling pb-3">
+        <div>
+          <h3 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Autonomous AI Analyst & Root Cause Workspace</span>
+          </h3>
+          <p className="text-xs text-paper-400 mt-0.5">
+            NATURAL LANGUAGE QUESTION → ATHENA SQL → LIVE DATA EXECUTION → AI ROOT CAUSE
+          </p>
+        </div>
+        <span className="stamp-tag stamp-tag-amber text-[9px]">PHASE 4 AI FORENSICS</span>
+      </div>
+
+      {/* Investigation Input Bar */}
+      <div className="ledger-card p-5 space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-paper-400 uppercase tracking-wider block">
+            Enter Natural Language Data Question / Hypothesis
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleInvestigate(); }}
+              placeholder='e.g. "Find top 10 records by value and analyze root causes for anomalies"'
+              disabled={isLoading}
+              className="flex-1 bg-ink-950 border border-ruling rounded px-3 py-2 text-xs text-paper-100 focus:border-evidence-amber"
+            />
+            <button
+              onClick={() => handleInvestigate()}
+              disabled={!question.trim() || isLoading}
+              className="btn-primary text-xs"
+            >
+              {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              <span>{isLoading ? 'Investigating Data...' : 'Run Investigation'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-ruling flex items-center gap-2 flex-wrap">
+          <span className="text-[9px] font-bold text-paper-400 uppercase">Suggested Prompts:</span>
+          {ANALYST_PRESET_PROMPTS.map((p) => (
+            <button
+              key={p}
+              onClick={() => handleInvestigate(p)}
+              className="px-2 py-0.5 rounded text-[10px] text-paper-300 bg-ink-950 border border-ruling hover:border-evidence-amber"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-ink-950 border border-evidence-crimson/40 text-evidence-crimson text-xs rounded">
+          <span className="font-bold uppercase block mb-1">Investigation Failed:</span>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {isLoading && (
+        <AILoadingSkeleton label="Generating Athena SQL, executing live query, and synthesizing AI root-cause analysis..." />
+      )}
+
+      {result && !isLoading && (
+        <div className="space-y-6">
+          {/* Executive Insight & Root Cause Card */}
+          <div className="ledger-card p-5 space-y-4 bg-ink-950 border-ruling">
+            <div className="flex items-center justify-between border-b border-ruling pb-2">
+              <span className="text-[10px] font-bold text-evidence-amber uppercase">AI Executive Takeaway</span>
+              <span className="stamp-tag stamp-tag-cyan text-[9px]">SYNTHESIZED INSIGHT</span>
+            </div>
+            <p className="text-xs text-paper-100 font-body leading-relaxed text-sm font-semibold">{result.executive_insight}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="p-3 bg-ink-900 rounded border border-ruling space-y-2">
+                <span className="text-[10px] font-bold text-paper-400 uppercase block">Key Data Findings</span>
+                <ul className="space-y-1 text-xs text-paper-300 font-body">
+                  {result.key_findings.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-evidence-emerald font-mono">•</span>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="p-3 bg-ink-900 rounded border border-ruling space-y-2">
+                <span className="text-[10px] font-bold text-evidence-amber uppercase block">Root Cause & Structural Explanation</span>
+                <p className="text-xs text-paper-200 font-body leading-relaxed">{result.root_cause_explanation}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Generated SQL & Execution Telemetry */}
+          <div className="ledger-card overflow-hidden">
+            <div className="ledger-header flex items-center justify-between">
+              <span>EXECUTED ATHENA ANSI SQL QUERY</span>
+              <div className="flex items-center gap-2">
+                <button onClick={handleCopySql} className="btn-secondary text-[10px] py-1 px-2">
+                  {copiedSql ? <Check className="w-3 h-3 text-evidence-emerald" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedSql ? 'Copied' : 'Copy SQL'}</span>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 bg-ink-950 overflow-x-auto">
+              <pre className="text-xs text-paper-100 font-mono leading-relaxed">{result.generated_sql}</pre>
+            </div>
+          </div>
+
+          {/* Executed Data Table */}
+          <div className="ledger-card p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-ruling pb-2">
+              <h4 className="text-xs font-bold text-paper-100 uppercase">Live Interrogated Data Specimens</h4>
+              <div className="flex items-center gap-3 text-[10px] text-paper-400">
+                <span>ROWS: {result.row_count}</span>
+                <span>TIME: {result.execution_time_ms} ms</span>
+                <span className="text-evidence-amber">SCANNED: {result.data_scanned_mb} MB</span>
+              </div>
+            </div>
+
+            {result.rows.length === 0 ? (
+              <p className="text-xs text-paper-400 p-2">No data rows returned by Athena query.</p>
+            ) : (
+              <div className="overflow-x-auto max-h-[300px] border border-ruling rounded">
+                <table className="forensic-table">
+                  <thead>
+                    <tr>
+                      {result.columns.map((col, idx) => (
+                        <th key={idx}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.rows.map((row, rIdx) => (
+                      <tr key={rIdx}>
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="text-paper-200">
+                            {cell === null ? <span className="text-paper-500 italic">NULL</span> : cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── Data Pipeline Section ────────────────────────────────────────────────────
 
 
@@ -1541,7 +1767,7 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const { id } = params;
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code' | 'pipeline' | 'quality_audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code' | 'pipeline' | 'quality_audit' | 'analyst'>('overview');
   const [activeAITab, setActiveAITab] = useState<'summary' | 'quality' | 'recommendations' | 'column' | 'chat'>('summary');
   const [selectedCatCol, setSelectedCatCol] = useState<string>('');
 
@@ -1611,7 +1837,9 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
     { id: 'code', label: '07. Code Studio' },
     { id: 'pipeline', label: '08. Lakehouse' },
     { id: 'quality_audit', label: '09. Quality Engine' },
+    { id: 'analyst', label: '10. AI Analyst' },
   ] as const;
+
 
 
   const aiSubTabs: { key: typeof activeAITab; label: string; icon: React.ComponentType<any> }[] = [
@@ -1975,7 +2203,13 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
             {activeTab === 'quality_audit' && (
               <QualityAuditSection datasetId={id} apiUrl={apiUrl} />
             )}
+
+            {/* TAB: Phase 4 AI Analyst Workspace */}
+            {activeTab === 'analyst' && (
+              <AIAnalystSection datasetId={id} apiUrl={apiUrl} />
+            )}
           </div>
+
 
         </section>
       </div>
