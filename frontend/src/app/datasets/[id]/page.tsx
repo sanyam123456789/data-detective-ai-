@@ -166,6 +166,47 @@ interface AthenaQueryResponse {
   data_scanned_mb: number;
 }
 
+// ─── Phase 3 Quality Audit Types ──────────────────────────────────────────────
+
+interface OutlierDetail {
+  column_name: string;
+  method: string;
+  outlier_count: number;
+  outlier_percentage: number;
+  lower_bound: number | null;
+  upper_bound: number | null;
+  sample_outliers: any[];
+}
+
+interface InconsistencyDetail {
+  column_name: string;
+  issue_type: string;
+  description: string;
+  affected_count: number;
+  severity: 'low' | 'medium' | 'high';
+}
+
+interface DimensionalScores {
+  completeness: number;
+  validity: number;
+  uniqueness: number;
+  consistency: number;
+  overall_quality_score: number;
+}
+
+interface QualityAuditFullResponse {
+  dataset_id: string;
+  total_rows: number;
+  total_columns: number;
+  dimensional_scores: DimensionalScores;
+  outliers_summary: OutlierDetail[];
+  inconsistencies_summary: InconsistencyDetail[];
+  quality_grade: string;
+  actionable_checklist: string[];
+  audited_at: string;
+}
+
+
 // ─── Phase 2C Response Types ──────────────────────────────────────────────────
 
 interface SQLGenerationResponse {
@@ -1117,7 +1158,182 @@ function AICodeStudioSection({ datasetId, apiUrl }: { datasetId: string; apiUrl:
   );
 }
 
+// ─── Phase 3: Quality Audit Section ──────────────────────────────────────────
+
+function QualityAuditSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
+  const { data: audit, isLoading, error, refetch } = useQuery<QualityAuditFullResponse>({
+    queryKey: ['quality-audit', datasetId],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/quality-audit`);
+      if (!res.ok) throw new Error('Failed to fetch data quality audit.');
+      return res.json();
+    },
+  });
+
+  if (isLoading) {
+    return <AILoadingSkeleton label="Executing multi-dimensional quality audit & IQR anomaly checks..." />;
+  }
+
+  if (error || !audit) {
+    return (
+      <div className="ledger-card p-6 text-center space-y-2 font-mono">
+        <AlertTriangle className="w-8 h-8 text-evidence-crimson mx-auto" />
+        <p className="text-xs font-bold text-paper-100 uppercase">Quality Audit Temporarily Unavailable</p>
+        <button onClick={() => refetch()} className="btn-secondary text-xs inline-flex mt-2">
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Re-Audit</span>
+        </button>
+      </div>
+    );
+  }
+
+  const scores = audit.dimensional_scores;
+
+  return (
+    <div className="space-y-6 font-mono">
+      <div className="flex items-center justify-between border-b border-ruling pb-3">
+        <div>
+          <h3 className="text-xs font-bold text-paper-100 uppercase flex items-center gap-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-evidence-amber" />
+            <span>Forensic Quality Engine & Anomaly Register</span>
+          </h3>
+          <p className="text-xs text-paper-400 mt-0.5">
+            MULTI-DIMENSIONAL QUALITY DIMENSIONS & IQR/Z-SCORE ANOMALIES
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`stamp-tag ${
+            audit.quality_grade === 'EXCELLENT' ? 'stamp-tag-emerald' : audit.quality_grade === 'GOOD' ? 'stamp-tag-cyan' : 'stamp-tag-crimson'
+          } text-[9px]`}>
+            {audit.quality_grade} GRADE ({scores.overall_quality_score}%)
+          </span>
+          <button onClick={() => refetch()} className="btn-secondary text-xs py-1 px-2.5">
+            <RefreshCw className="w-3 h-3" />
+            <span>Re-Audit</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Dimensional Score Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="ledger-card p-4 space-y-1">
+          <span className="text-[10px] font-bold text-paper-400 uppercase block">Completeness</span>
+          <p className="text-xl font-bold text-paper-50">{scores.completeness}%</p>
+          <div className="w-full bg-ink-900 h-1.5 rounded overflow-hidden mt-1">
+            <div className="bg-evidence-cyan h-full" style={{ width: `${scores.completeness}%` }} />
+          </div>
+        </div>
+        <div className="ledger-card p-4 space-y-1">
+          <span className="text-[10px] font-bold text-paper-400 uppercase block">Validity</span>
+          <p className="text-xl font-bold text-paper-50">{scores.validity}%</p>
+          <div className="w-full bg-ink-900 h-1.5 rounded overflow-hidden mt-1">
+            <div className="bg-evidence-emerald h-full" style={{ width: `${scores.validity}%` }} />
+          </div>
+        </div>
+        <div className="ledger-card p-4 space-y-1">
+          <span className="text-[10px] font-bold text-paper-400 uppercase block">Uniqueness</span>
+          <p className="text-xl font-bold text-paper-50">{scores.uniqueness}%</p>
+          <div className="w-full bg-ink-900 h-1.5 rounded overflow-hidden mt-1">
+            <div className="bg-evidence-amber h-full" style={{ width: `${scores.uniqueness}%` }} />
+          </div>
+        </div>
+        <div className="ledger-card p-4 space-y-1">
+          <span className="text-[10px] font-bold text-paper-400 uppercase block">Consistency</span>
+          <p className="text-xl font-bold text-paper-50">{scores.consistency}%</p>
+          <div className="w-full bg-ink-900 h-1.5 rounded overflow-hidden mt-1">
+            <div className="bg-evidence-cyan h-full" style={{ width: `${scores.consistency}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Outliers Table */}
+      <div className="ledger-card p-5 space-y-3">
+        <div className="flex items-center justify-between border-b border-ruling pb-2">
+          <h4 className="text-xs font-bold text-paper-100 uppercase">Statistical Outliers (IQR / Z-Score)</h4>
+          <span className="text-[10px] text-paper-400">{audit.outliers_summary.length} COLUMNS FLAGGED</span>
+        </div>
+
+        {audit.outliers_summary.length === 0 ? (
+          <p className="text-xs text-evidence-emerald p-2">✓ No statistical outliers detected in numeric fields.</p>
+        ) : (
+          <div className="overflow-x-auto max-h-[260px]">
+            <table className="forensic-table">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Method</th>
+                  <th>Outlier Count</th>
+                  <th>Ratio (%)</th>
+                  <th>Bounds [Lower, Upper]</th>
+                  <th>Sample Flagged Values</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.outliers_summary.map((out, idx) => (
+                  <tr key={idx}>
+                    <td className="font-bold text-paper-100">{out.column_name}</td>
+                    <td><span className="stamp-tag stamp-tag-amber text-[9px]">{out.method}</span></td>
+                    <td className="text-evidence-crimson font-bold">{out.outlier_count}</td>
+                    <td>{out.outlier_percentage}%</td>
+                    <td className="text-paper-400">[{out.lower_bound ?? '-'}, {out.upper_bound ?? '-'}]</td>
+                    <td className="text-paper-200 truncate max-w-[200px]">
+                      {out.sample_outliers.length > 0 ? out.sample_outliers.join(', ') : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Format Risks & Inconsistencies */}
+      <div className="ledger-card p-5 space-y-3">
+        <div className="flex items-center justify-between border-b border-ruling pb-2">
+          <h4 className="text-xs font-bold text-paper-100 uppercase">Format Risk & Inconsistency Register</h4>
+          <span className="text-[10px] text-paper-400">{audit.inconsistencies_summary.length} ISSUES IDENTIFIED</span>
+        </div>
+
+        {audit.inconsistencies_summary.length === 0 ? (
+          <p className="text-xs text-evidence-emerald p-2">✓ Schema free from type anomalies and whitespace defects.</p>
+        ) : (
+          <div className="space-y-2">
+            {audit.inconsistencies_summary.map((inc, i) => (
+              <div key={i} className="p-3 bg-ink-950 rounded border border-ruling flex items-center justify-between gap-4 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-paper-100">{inc.column_name}</span>
+                    <span className="stamp-tag stamp-tag-cyan text-[9px]">{inc.issue_type}</span>
+                  </div>
+                  <p className="text-paper-300 font-body text-[11px]">{inc.description}</p>
+                </div>
+                <PriorityBadge level={inc.severity} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Remediation Checklist */}
+      <div className="ledger-card p-4 space-y-2 bg-ink-950">
+        <span className="text-[10px] font-bold text-evidence-amber uppercase block border-b border-ruling pb-1">
+          Quality Audit Remediation Checklist:
+        </span>
+        <ul className="space-y-1 text-xs text-paper-300 font-body">
+          {audit.actionable_checklist.map((item, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-evidence-amber font-mono font-bold">&gt;</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // ─── Data Pipeline Section ────────────────────────────────────────────────────
+
 
 function DataPipelineSection({ datasetId, apiUrl }: { datasetId: string; apiUrl: string }) {
   const { data: pipeline, isLoading, refetch } = useQuery<PipelineStatusResponse>({
@@ -1325,7 +1541,7 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const { id } = params;
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code' | 'pipeline'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'columns' | 'numeric' | 'categorical' | 'charts' | 'ai' | 'code' | 'pipeline' | 'quality_audit'>('overview');
   const [activeAITab, setActiveAITab] = useState<'summary' | 'quality' | 'recommendations' | 'column' | 'chat'>('summary');
   const [selectedCatCol, setSelectedCatCol] = useState<string>('');
 
@@ -1394,7 +1610,9 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
     { id: 'ai', label: '06. AI Intelligence' },
     { id: 'code', label: '07. Code Studio' },
     { id: 'pipeline', label: '08. Lakehouse' },
+    { id: 'quality_audit', label: '09. Quality Engine' },
   ] as const;
+
 
   const aiSubTabs: { key: typeof activeAITab; label: string; icon: React.ComponentType<any> }[] = [
     { key: 'summary', label: 'Executive Summary', icon: Brain },
@@ -1752,7 +1970,13 @@ export default function DatasetDetailsPage({ params }: { params: { id: string } 
             {activeTab === 'pipeline' && (
               <DataPipelineSection datasetId={id} apiUrl={apiUrl} />
             )}
+
+            {/* TAB: Quality Engine Audit */}
+            {activeTab === 'quality_audit' && (
+              <QualityAuditSection datasetId={id} apiUrl={apiUrl} />
+            )}
           </div>
+
         </section>
       </div>
     </div>

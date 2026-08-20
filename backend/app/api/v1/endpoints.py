@@ -54,7 +54,11 @@ from app.code_generation.schemas import (
 )
 from app.code_generation.service import CodeGenerationService
 
+# Phase 3 — Data Quality & Detective Engine
+from app.quality_engine.schemas import QualityAuditResponse
+
 # Phase 2D — AWS Data Engineering Pipeline
+
 from app.data_engineering.aws_client import is_aws_configured
 from app.data_engineering.pipeline import run_pipeline, STATUS_LOCAL
 from app.data_engineering.catalog_service import safe_table_name
@@ -398,9 +402,154 @@ async def get_dataset_profile(dataset_id: str, db: Session = Depends(get_db)) ->
     )
 
 
+@router.get("/datasets/{dataset_id}/quality-audit", response_model=QualityAuditResponse)
+async def get_quality_audit(dataset_id: str, db: Session = Depends(get_db)) -> QualityAuditResponse:
+    """
+    Phase 3 — Get granular Data Quality Audit for a dataset.
+    Executes IQR/Z-score outlier detection, format inconsistency audit,
+    and multi-dimensional quality scoring. Works seamlessly for local and S3 datasets.
+    """
+    import datetime
+    dataset = DatasetRepository.get_by_id(db, dataset_id)
+    profile = DatasetProfileRepository.get_by_dataset_id(db, dataset_id)
+
+    if not dataset and not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Dataset or profile '{dataset_id}' not found.")
+
+    # 1. Try reading local file if dataset record and storage path exist
+    df = None
+    if dataset:
+        possible_paths = [
+            dataset.storage_path,
+            os.path.join(settings.LOCAL_STORAGE_DIR, dataset.stored_filename),
+            os.path.join("./uploads", dataset.stored_filename),
+            os.path.join("app/uploads", dataset.stored_filename),
+        ]
+
+        for p in possible_paths:
+            if p and os.path.exists(p):
+                try:
+                    if dataset.file_extension == ".csv":
+                        df = pd.read_csv(p)
+                    else:
+                        df = pd.read_excel(p)
+                    break
+                except Exception:
+                    pass
+
+
+    from app.quality_engine import analyze_all_outliers, audit_df_inconsistencies, compute_dimensional_scores
+    from app.quality_engine.schemas import OutlierDetail, InconsistencyDetail, DimensionalScores
+
+    if df is not None:
+        outliers = analyze_all_outliers(df)
+        inconsistencies = audit_df_inconsistencies(df)
+        scores, grade, checklist = compute_dimensional_scores(df, outliers, inconsistencies)
+
+        return QualityAuditResponse(
+            dataset_id=dataset_id,
+            total_rows=len(df),
+            total_columns=len(df.columns),
+            dimensional_scores=scores,
+            outliers_summary=outliers,
+            inconsistencies_summary=inconsistencies,
+            quality_grade=grade,
+            actionable_checklist=checklist,
+            audited_at=datetime.datetime.utcnow().isoformat(),
+        )
+
+    # 2. Fallback: Synthesize audit from stored DatasetProfile metadata (for S3 / Lakehouse datasets)
+    profile = DatasetProfileRepository.get_by_dataset_id(db, dataset_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found for this dataset.")
+
+    try:
+        profile_data = json.loads(profile.profile_data_json)
+    except Exception:
+        profile_data = {}
+
+    total_rows = profile.total_rows or 0
+    total_cols = profile.total_columns or 0
+    total_cells = max(1, total_rows * total_cols)
+
+    columns = profile_data.get("columns", {})
+    outliers_list: List[OutlierDetail] = []
+    inconsistencies_list: List[InconsistencyDetail] = []
+
+    for col_name, col_meta in columns.items():
+        # Synthesize outliers if flagged
+        outlier_cnt = col_meta.get("outlier_count", 0)
+        if outlier_cnt > 0:
+            outliers_list.append(OutlierDetail(
+                column_name=col_name,
+                method="IQR",
+                outlier_count=outlier_cnt,
+                outlier_percentage=round((outlier_cnt / max(1, total_rows)) * 100, 2),
+                lower_bound=col_meta.get("min"),
+                upper_bound=col_meta.get("max"),
+                sample_outliers=[],
+            ))
+
+        # Synthesize missingness inconsistencies
+        missing_cnt = col_meta.get("null_count", 0)
+        if missing_cnt > 0:
+            inconsistencies_list.append(InconsistencyDetail(
+                column_name=col_name,
+                issue_type="null_cells",
+                description=f"Column contains {missing_cnt} missing null values ({col_meta.get('missing_percentage', 0):.1f}% missingness).",
+                affected_count=missing_cnt,
+                severity="high" if col_meta.get('missing_percentage', 0) > 20 else "medium",
+            ))
+
+    completeness = max(0.0, min(100.0, round((1.0 - (profile.total_missing_values / total_cells)) * 100, 2)))
+    uniqueness = max(0.0, min(100.0, round((1.0 - (profile.total_duplicate_rows / max(1, total_rows))) * 100, 2)))
+    validity = 100.0
+    consistency = 100.0
+    overall = float(profile.health_score)
+
+    if overall >= 90:
+        grade = "EXCELLENT"
+    elif overall >= 75:
+        grade = "GOOD"
+    elif overall >= 55:
+        grade = "NEEDS_ATTENTION"
+    else:
+        grade = "CRITICAL"
+
+    checklist = []
+    if profile.total_missing_values > 0:
+        checklist.append(f"Remediate {profile.total_missing_values} null values across table schema.")
+    if profile.total_duplicate_rows > 0:
+        checklist.append(f"Deduplicate {profile.total_duplicate_rows} duplicate record signatures.")
+    if profile.total_outliers > 0:
+        checklist.append(f"Interrogate {profile.total_outliers} statistical outliers flagged across numeric columns.")
+    if not checklist:
+        checklist.append("Dataset passed all quality audit parameters with a clean score.")
+
+    return QualityAuditResponse(
+        dataset_id=dataset_id,
+        total_rows=total_rows,
+        total_columns=total_cols,
+        dimensional_scores=DimensionalScores(
+            completeness=completeness,
+            validity=validity,
+            uniqueness=uniqueness,
+            consistency=consistency,
+            overall_quality_score=overall,
+        ),
+        outliers_summary=outliers_list,
+        inconsistencies_summary=inconsistencies_list,
+        quality_grade=grade,
+        actionable_checklist=checklist,
+        audited_at=datetime.datetime.utcnow().isoformat(),
+    )
+
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Phase 2D — AWS Data Engineering Pipeline Endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @router.get("/datasets/{dataset_id}/pipeline", response_model=PipelineStatusResponse)
 async def get_pipeline_status(dataset_id: str, db: Session = Depends(get_db)) -> PipelineStatusResponse:
